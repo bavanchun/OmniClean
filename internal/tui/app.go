@@ -87,7 +87,10 @@ func New(cfg Config) *App {
 func (a *App) Run(ctx context.Context) error {
 	p := tea.NewProgram(a, tea.WithAltScreen(), tea.WithContext(ctx))
 	_, err := p.Run()
-	return err
+	if err != nil {
+		return fmt.Errorf("running TUI: %w", err)
+	}
+	return nil
 }
 
 // --- Bubbletea interface ---

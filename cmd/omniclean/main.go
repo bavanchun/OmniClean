@@ -12,6 +12,9 @@ import (
 	"github.com/bavanchun/OmniClean/internal/tui"
 )
 
+// version is set at build time via -ldflags "-X main.version=<tag>".
+var version = "dev"
+
 func main() {
 	var (
 		dryRun    bool
@@ -20,8 +23,9 @@ func main() {
 	)
 
 	root := &cobra.Command{
-		Use:   "omniclean",
-		Short: "Unified package manager uninstaller",
+		Use:     "omniclean",
+		Short:   "Unified package manager uninstaller",
+		Version: version,
 		Long: `OmniClean aggregates packages from multiple package managers
 into a single interactive TUI. Search, select, and cleanly uninstall.`,
 		RunE: func(cmd *cobra.Command, args []string) error {

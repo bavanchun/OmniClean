@@ -4,9 +4,11 @@ MAIN_PKG    := ./cmd/omniclean
 
 .PHONY: build run test lint fmt clean install-tools
 
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+
 ## build: Compile the binary to bin/omniclean
 build:
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PKG)
+	go build -ldflags "-s -w -X main.version=$(VERSION)" -o $(BUILD_DIR)/$(BINARY_NAME) $(MAIN_PKG)
 
 ## run: Run the application directly (no build)
 run:

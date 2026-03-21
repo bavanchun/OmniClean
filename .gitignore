@@ -238,4 +238,7 @@ coverage.out
 *.claude
 CLAUDE.md
 
+# GoReleaser output
+dist/
+
 # End of https://www.toptal.com/developers/gitignore/api/go,linux,visualstudiocode,macos,windows,jetbrains
