@@ -39,7 +39,10 @@ func (s *Snap) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 
 	var packages []pkg.Package
 	lines := strings.Split(out, "\n")
-	// Skip header line
+	// Skip header line; guard against empty output.
+	if len(lines) <= 1 {
+		return packages, nil
+	}
 	for _, line := range lines[1:] {
 		line = strings.TrimSpace(line)
 		if line == "" {
