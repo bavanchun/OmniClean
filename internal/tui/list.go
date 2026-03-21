@@ -57,7 +57,7 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	badge := d.styles.BadgeFor(string(p.Manager))
 	version := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096")).Render(p.Version)
 
-	fmt.Fprintf(w, "%s%s %s %s %s\n", cursor, checkbox, name, badge, version)
+	fmt.Fprintf(w, "%s%s %s %s %s", cursor, checkbox, name, badge, version)
 }
 
 func newListModel(packages []pkg.Package, styles Styles, warnings []string) listModel {
