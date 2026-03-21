@@ -5,14 +5,14 @@ import "github.com/charmbracelet/lipgloss"
 
 // Styles holds all Lipgloss styles used in the application.
 type Styles struct {
-	Title      lipgloss.Style
-	StatusBar  lipgloss.Style
-	HelpBar    lipgloss.Style
+	Title        lipgloss.Style
+	StatusBar    lipgloss.Style
+	HelpBar      lipgloss.Style
 	ManagerBadge map[string]lipgloss.Style
-	Selected   lipgloss.Style
-	DryRunBadge lipgloss.Style
-	ErrorText  lipgloss.Style
-	Border     lipgloss.Style
+	Selected     lipgloss.Style
+	DryRunBadge  lipgloss.Style
+	ErrorText    lipgloss.Style
+	Border       lipgloss.Style
 }
 
 // DefaultStyles returns the application's default style set.

@@ -45,8 +45,8 @@ func (m detailModel) View() string {
 	if p.Size > 0 {
 		fmt.Fprintf(&b, "  Size:     %s\n", formatBytes(p.Size))
 	}
-	fmt.Fprintf(&b, "\n")
-	fmt.Fprintf(&b, m.styles.HelpBar.Render("  esc: back  enter: select for removal"))
+	fmt.Fprintln(&b)
+	fmt.Fprint(&b, m.styles.HelpBar.Render("  esc: back  enter: select for removal"))
 
 	return m.styles.Border.Width(m.width - 4).Render(b.String())
 }

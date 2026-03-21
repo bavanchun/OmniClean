@@ -68,5 +68,5 @@ func (m confirmModel) View() string {
 	}
 	fmt.Fprint(&b, m.styles.HelpBar.Render("  [y] confirm  [n/esc] cancel"))
 
-	return m.styles.Border.Width(m.width-4).Render(b.String())
+	return m.styles.Border.Width(m.width - 4).Render(b.String())
 }
