@@ -55,10 +55,10 @@ type App struct {
 	width, height int
 
 	// sudo uninstall sequencing
-	detectorMap  map[string]detector.Detector
-	sudoQueue    []pkg.Package // packages waiting to be uninstalled via tea.Exec
-	normalDone   bool          // normal (non-sudo) batch finished
-	sudoDone     bool          // all sudo packages finished
+	detectorMap map[string]detector.Detector
+	sudoQueue   []pkg.Package // packages waiting to be uninstalled via tea.Exec
+	normalDone  bool          // normal (non-sudo) batch finished
+	sudoDone    bool          // all sudo packages finished
 }
 
 // New creates the App model ready to be run.

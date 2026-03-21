@@ -51,8 +51,8 @@ func (p Package) Desc() string {
 
 // UninstallResult holds the outcome of a single package removal operation.
 type UninstallResult struct {
-	Package    Package
-	Err        error
-	DryRunCmd  string   // set when dry-run mode; shows the command that would run
-	Leftovers  []string // leftover config/cache paths found after uninstall
+	Package   Package
+	Err       error
+	DryRunCmd string   // set when dry-run mode; shows the command that would run
+	Leftovers []string // leftover config/cache paths found after uninstall
 }

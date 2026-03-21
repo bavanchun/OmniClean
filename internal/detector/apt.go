@@ -20,9 +20,9 @@ func NewAPT(run CommandRunner) *APT {
 	return &APT{run: run}
 }
 
-func (a *APT) Name() string      { return "apt" }
-func (a *APT) NeedsSudo() bool   { return true }
-func (a *APT) Available() bool   { return LookPath("dpkg-query") }
+func (a *APT) Name() string    { return "apt" }
+func (a *APT) NeedsSudo() bool { return true }
+func (a *APT) Available() bool { return LookPath("dpkg-query") }
 
 func (a *APT) DryRunCommand(p pkg.Package) string {
 	return fmt.Sprintf("sudo apt-get remove -y %s", p.Name)
