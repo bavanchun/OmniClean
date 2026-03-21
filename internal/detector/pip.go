@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
@@ -18,11 +19,9 @@ func NewPip(run CommandRunner) *Pip {
 	return &Pip{run: run}
 }
 
-func (p *Pip) Name() string { return "pip" }
-
-func (p *Pip) Available() bool {
-	return LookPath("pip3") || LookPath("pip")
-}
+func (p *Pip) Name() string    { return "pip" }
+func (p *Pip) NeedsSudo() bool { return false }
+func (p *Pip) Available() bool { return LookPath("pip3") || LookPath("pip") }
 
 func (p *Pip) binary() string {
 	if LookPath("pip3") {
@@ -31,8 +30,13 @@ func (p *Pip) binary() string {
 	return "pip"
 }
 
+func (p *Pip) DryRunCommand(pk pkg.Package) string {
+	return fmt.Sprintf("%s uninstall -y %s", p.binary(), pk.Name)
+}
+
+func (p *Pip) UninstallExecCmd(_ pkg.Package) *exec.Cmd { return nil }
+
 func (p *Pip) ListPackages(ctx context.Context) ([]pkg.Package, error) {
-	// freeze format: name==version
 	out, err := p.run(ctx, p.binary(), "list", "--format=freeze")
 	if err != nil {
 		return nil, fmt.Errorf("pip list packages: %w", err)
@@ -57,11 +61,7 @@ func (p *Pip) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-func (p *Pip) Uninstall(ctx context.Context, pk pkg.Package, dryRun bool) error {
-	if dryRun {
-		fmt.Printf("[dry-run] %s uninstall -y %s\n", p.binary(), pk.Name)
-		return nil
-	}
+func (p *Pip) Uninstall(ctx context.Context, pk pkg.Package) error {
 	_, err := p.run(ctx, p.binary(), "uninstall", "-y", pk.Name)
 	if err != nil {
 		return fmt.Errorf("pip uninstall %s: %w", pk.Name, err)

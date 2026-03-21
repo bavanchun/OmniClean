@@ -49,13 +49,20 @@ func DefaultStyles() Styles {
 			BorderForeground(lipgloss.Color("#4A5568")),
 
 		ManagerBadge: map[string]lipgloss.Style{
+			// Linux
 			"apt":     lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true),
-			"brew":    lipgloss.NewStyle().Foreground(lipgloss.Color("#F6AD55")).Bold(true),
 			"snap":    lipgloss.NewStyle().Foreground(lipgloss.Color("#FC8181")).Bold(true),
 			"flatpak": lipgloss.NewStyle().Foreground(lipgloss.Color("#63B3ED")).Bold(true),
-			"pip":     lipgloss.NewStyle().Foreground(lipgloss.Color("#68D391")).Bold(true),
-			"npm":     lipgloss.NewStyle().Foreground(lipgloss.Color("#F687B3")).Bold(true),
-			"cargo":   lipgloss.NewStyle().Foreground(lipgloss.Color("#D69E2E")).Bold(true),
+			// macOS + Linux
+			"brew": lipgloss.NewStyle().Foreground(lipgloss.Color("#F6AD55")).Bold(true),
+			// Cross-platform
+			"pip":   lipgloss.NewStyle().Foreground(lipgloss.Color("#68D391")).Bold(true),
+			"npm":   lipgloss.NewStyle().Foreground(lipgloss.Color("#F687B3")).Bold(true),
+			"cargo": lipgloss.NewStyle().Foreground(lipgloss.Color("#D69E2E")).Bold(true),
+			// Windows
+			"winget": lipgloss.NewStyle().Foreground(lipgloss.Color("#76E4F7")).Bold(true),
+			"choco":  lipgloss.NewStyle().Foreground(lipgloss.Color("#FBD38D")).Bold(true),
+			"scoop":  lipgloss.NewStyle().Foreground(lipgloss.Color("#B794F4")).Bold(true),
 		},
 	}
 }

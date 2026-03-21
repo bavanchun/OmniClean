@@ -14,6 +14,10 @@ const (
 	ManagerPip     ManagerType = "pip"
 	ManagerNPM     ManagerType = "npm"
 	ManagerCargo   ManagerType = "cargo"
+	// Windows package managers
+	ManagerWinget ManagerType = "winget"
+	ManagerChoco  ManagerType = "choco"
+	ManagerScoop  ManagerType = "scoop"
 )
 
 // Package represents a single installed package from any package manager.
@@ -47,6 +51,8 @@ func (p Package) Desc() string {
 
 // UninstallResult holds the outcome of a single package removal operation.
 type UninstallResult struct {
-	Package Package
-	Err     error
+	Package    Package
+	Err        error
+	DryRunCmd  string   // set when dry-run mode; shows the command that would run
+	Leftovers  []string // leftover config/cache paths found after uninstall
 }

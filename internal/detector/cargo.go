@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
@@ -18,14 +19,17 @@ func NewCargo(run CommandRunner) *Cargo {
 	return &Cargo{run: run}
 }
 
-func (c *Cargo) Name() string { return "cargo" }
+func (c *Cargo) Name() string    { return "cargo" }
+func (c *Cargo) NeedsSudo() bool { return false }
+func (c *Cargo) Available() bool { return LookPath("cargo") }
 
-func (c *Cargo) Available() bool {
-	return LookPath("cargo")
+func (c *Cargo) DryRunCommand(p pkg.Package) string {
+	return fmt.Sprintf("cargo uninstall %s", p.Name)
 }
 
+func (c *Cargo) UninstallExecCmd(_ pkg.Package) *exec.Cmd { return nil }
+
 func (c *Cargo) ListPackages(ctx context.Context) ([]pkg.Package, error) {
-	// cargo install --list outputs lines like: "crate v1.2.3 (...):"
 	out, err := c.run(ctx, "cargo", "install", "--list")
 	if err != nil {
 		return nil, fmt.Errorf("cargo list packages: %w", err)
@@ -53,11 +57,7 @@ func (c *Cargo) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-func (c *Cargo) Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error {
-	if dryRun {
-		fmt.Printf("[dry-run] cargo uninstall %s\n", p.Name)
-		return nil
-	}
+func (c *Cargo) Uninstall(ctx context.Context, p pkg.Package) error {
 	_, err := c.run(ctx, "cargo", "uninstall", p.Name)
 	if err != nil {
 		return fmt.Errorf("cargo uninstall %s: %w", p.Name, err)
