@@ -2,15 +2,23 @@ package detector
 
 // AllDetectors returns every detector OmniClean knows about.
 // The list is explicit (not init-based) to keep things testable and readable.
+// Detectors for unavailable managers are safe to include — Available() filters them at runtime.
 func AllDetectors() []Detector {
 	return []Detector{
+		// Linux
 		NewAPT(DefaultRunner),
-		NewBrew(DefaultRunner),
 		NewSnap(DefaultRunner),
 		NewFlatpak(DefaultRunner),
+		// macOS + Linux
+		NewBrew(DefaultRunner),
+		// Cross-platform (language package managers)
 		NewPip(DefaultRunner),
 		NewNPM(DefaultRunner),
 		NewCargo(DefaultRunner),
+		// Windows
+		NewWinget(DefaultRunner),
+		NewChoco(DefaultRunner),
+		NewScoop(DefaultRunner),
 	}
 }
 

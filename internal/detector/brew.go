@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
@@ -18,11 +19,15 @@ func NewBrew(run CommandRunner) *Brew {
 	return &Brew{run: run}
 }
 
-func (b *Brew) Name() string { return "brew" }
+func (b *Brew) Name() string    { return "brew" }
+func (b *Brew) NeedsSudo() bool { return false }
+func (b *Brew) Available() bool { return LookPath("brew") }
 
-func (b *Brew) Available() bool {
-	return LookPath("brew")
+func (b *Brew) DryRunCommand(p pkg.Package) string {
+	return fmt.Sprintf("brew uninstall %s", p.Name)
 }
+
+func (b *Brew) UninstallExecCmd(_ pkg.Package) *exec.Cmd { return nil }
 
 func (b *Brew) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	out, err := b.run(ctx, "brew", "list", "--versions")
@@ -49,11 +54,7 @@ func (b *Brew) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-func (b *Brew) Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error {
-	if dryRun {
-		fmt.Printf("[dry-run] brew uninstall %s\n", p.Name)
-		return nil
-	}
+func (b *Brew) Uninstall(ctx context.Context, p pkg.Package) error {
 	_, err := b.run(ctx, "brew", "uninstall", p.Name)
 	if err != nil {
 		return fmt.Errorf("brew uninstall %s: %w", p.Name, err)

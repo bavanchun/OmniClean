@@ -15,17 +15,19 @@ import (
 // listModel wraps bubbles/list and adds multi-select state.
 type listModel struct {
 	list     list.Model
-	selected map[string]bool // key: package name
+	selected map[string]bool // key: "manager:name"
 	styles   Styles
+	warnings []string
 }
 
-// packageDelegate renders each package row with a manager badge.
+// packageDelegate renders each package row with manager badge and selection checkbox.
 type packageDelegate struct {
-	styles Styles
+	styles   Styles
+	selected map[string]bool // shared reference — Go maps are reference types
 }
 
 func (d packageDelegate) Height() int                               { return 1 }
-func (d packageDelegate) Spacing() int                              { return 0 }
+func (d packageDelegate) Spacing() int                             { return 0 }
 func (d packageDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
 func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
@@ -34,28 +36,39 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		return
 	}
 
-	isSelected := index == m.Index()
-	badge := d.styles.BadgeFor(string(p.Manager))
+	isCursor := index == m.Index()
+	isChecked := d.selected[selectionKey(p)]
 
-	name := p.Name
-	if isSelected {
-		name = d.styles.Selected.Render("> " + name)
-	} else {
-		name = "  " + name
+	cursor := "  "
+	if isCursor {
+		cursor = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED")).Render("> ")
 	}
 
+	checkbox := "[ ]"
+	if isChecked {
+		checkbox = lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true).Render("[✓]")
+	}
+
+	name := p.Name
+	if isCursor {
+		name = d.styles.Selected.Render(name)
+	}
+
+	badge := d.styles.BadgeFor(string(p.Manager))
 	version := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096")).Render(p.Version)
-	line := fmt.Sprintf("%s %s %s", name, badge, version)
-	fmt.Fprintln(w, line)
+
+	fmt.Fprintf(w, "%s%s %s %s %s\n", cursor, checkbox, name, badge, version)
 }
 
-func newListModel(packages []pkg.Package, styles Styles) listModel {
+func newListModel(packages []pkg.Package, styles Styles, warnings []string) listModel {
 	items := make([]list.Item, len(packages))
 	for i, p := range packages {
 		items[i] = p
 	}
 
-	delegate := packageDelegate{styles: styles}
+	selected := make(map[string]bool)
+	delegate := packageDelegate{styles: styles, selected: selected}
+
 	l := list.New(items, delegate, 0, 0)
 	l.Title = "OmniClean"
 	l.SetShowStatusBar(true)
@@ -64,8 +77,9 @@ func newListModel(packages []pkg.Package, styles Styles) listModel {
 
 	return listModel{
 		list:     l,
-		selected: make(map[string]bool),
+		selected: selected,
 		styles:   styles,
+		warnings: warnings,
 	}
 }
 
@@ -77,7 +91,6 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.String() == " " {
-			// Toggle selection on the current item
 			if item, ok := m.list.SelectedItem().(pkg.Package); ok {
 				key := selectionKey(item)
 				m.selected[key] = !m.selected[key]
@@ -85,7 +98,8 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 			return m, nil
 		}
 	case tea.WindowSizeMsg:
-		m.list.SetSize(msg.Width, msg.Height-4) // leave room for header + help
+		warningLines := len(m.warnings)
+		m.list.SetSize(msg.Width, msg.Height-4-warningLines)
 	}
 
 	var cmd tea.Cmd
@@ -101,11 +115,21 @@ func (m listModel) View() string {
 		}
 	}
 
-	status := m.styles.StatusBar.Render(
-		fmt.Sprintf("%d selected | space: select  enter: confirm  q: quit", selectedCount),
-	)
+	var parts []string
+	parts = append(parts, m.list.View())
 
-	return m.list.View() + "\n" + status
+	// Show warning bar if any detectors failed
+	if len(m.warnings) > 0 {
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F6AD55"))
+		parts = append(parts, warnStyle.Render("  ⚠ Some detectors failed: "+strings.Join(m.warnings, ", ")))
+	}
+
+	status := m.styles.StatusBar.Render(
+		fmt.Sprintf("%d selected  ·  space: select  d: details  enter: confirm  q: quit", selectedCount),
+	)
+	parts = append(parts, status)
+
+	return strings.Join(parts, "\n")
 }
 
 // SelectedPackages returns all packages the user has toggled.
@@ -125,5 +149,5 @@ func (m listModel) SelectedPackages() []pkg.Package {
 }
 
 func selectionKey(p pkg.Package) string {
-	return strings.Join([]string{string(p.Manager), p.Name}, ":")
+	return string(p.Manager) + ":" + p.Name
 }

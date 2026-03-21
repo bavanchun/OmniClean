@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
@@ -18,14 +19,17 @@ func NewFlatpak(run CommandRunner) *Flatpak {
 	return &Flatpak{run: run}
 }
 
-func (f *Flatpak) Name() string { return "flatpak" }
+func (f *Flatpak) Name() string    { return "flatpak" }
+func (f *Flatpak) NeedsSudo() bool { return false }
+func (f *Flatpak) Available() bool { return LookPath("flatpak") }
 
-func (f *Flatpak) Available() bool {
-	return LookPath("flatpak")
+func (f *Flatpak) DryRunCommand(p pkg.Package) string {
+	return fmt.Sprintf("flatpak uninstall -y %s", p.Name)
 }
 
+func (f *Flatpak) UninstallExecCmd(_ pkg.Package) *exec.Cmd { return nil }
+
 func (f *Flatpak) ListPackages(ctx context.Context) ([]pkg.Package, error) {
-	// columns: application, version (tab-separated)
 	out, err := f.run(ctx, "flatpak", "list", "--app", "--columns=application,version")
 	if err != nil {
 		return nil, fmt.Errorf("flatpak list packages: %w", err)
@@ -50,11 +54,7 @@ func (f *Flatpak) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-func (f *Flatpak) Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error {
-	if dryRun {
-		fmt.Printf("[dry-run] flatpak uninstall -y %s\n", p.Name)
-		return nil
-	}
+func (f *Flatpak) Uninstall(ctx context.Context, p pkg.Package) error {
 	_, err := f.run(ctx, "flatpak", "uninstall", "-y", p.Name)
 	if err != nil {
 		return fmt.Errorf("flatpak uninstall %s: %w", p.Name, err)

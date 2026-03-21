@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -19,10 +20,16 @@ func NewAPT(run CommandRunner) *APT {
 	return &APT{run: run}
 }
 
-func (a *APT) Name() string { return "apt" }
+func (a *APT) Name() string      { return "apt" }
+func (a *APT) NeedsSudo() bool   { return true }
+func (a *APT) Available() bool   { return LookPath("dpkg-query") }
 
-func (a *APT) Available() bool {
-	return LookPath("dpkg-query")
+func (a *APT) DryRunCommand(p pkg.Package) string {
+	return fmt.Sprintf("sudo apt-get remove -y %s", p.Name)
+}
+
+func (a *APT) UninstallExecCmd(p pkg.Package) *exec.Cmd {
+	return NewSudoExecCmd("sudo", "apt-get", "remove", "-y", p.Name)
 }
 
 // ListPackages queries dpkg for all installed packages.
@@ -53,7 +60,6 @@ func (a *APT) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 			Manager: pkg.ManagerAPT,
 		}
 		if len(parts) >= 3 {
-			// dpkg reports size in kB; convert to bytes
 			if kb, err := strconv.ParseInt(strings.TrimSpace(parts[2]), 10, 64); err == nil {
 				p.Size = kb * 1024
 			}
@@ -66,16 +72,8 @@ func (a *APT) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-// Uninstall removes a package using apt-get. Requires sudo.
-func (a *APT) Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error {
-	args := []string{"apt-get", "remove", "-y", p.Name}
-	if dryRun {
-		fmt.Printf("[dry-run] sudo %s\n", strings.Join(args, " "))
-		return nil
-	}
-	_, err := a.run(ctx, "sudo", args...)
-	if err != nil {
-		return fmt.Errorf("apt uninstall %s: %w", p.Name, err)
-	}
-	return nil
+// Uninstall is not used for APT since NeedsSudo=true; the TUI calls
+// UninstallExecCmd + tea.Exec instead.
+func (a *APT) Uninstall(_ context.Context, p pkg.Package) error {
+	return fmt.Errorf("apt: use UninstallExecCmd for interactive sudo uninstall of %s", p.Name)
 }

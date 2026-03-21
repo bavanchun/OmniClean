@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -18,28 +19,33 @@ func NewNPM(run CommandRunner) *NPM {
 	return &NPM{run: run}
 }
 
-func (n *NPM) Name() string { return "npm" }
+func (n *NPM) Name() string    { return "npm" }
+func (n *NPM) NeedsSudo() bool { return false }
+func (n *NPM) Available() bool { return LookPath("npm") }
 
-func (n *NPM) Available() bool {
-	return LookPath("npm")
+func (n *NPM) DryRunCommand(p pkg.Package) string {
+	return fmt.Sprintf("npm uninstall --global %s", p.Name)
 }
+
+func (n *NPM) UninstallExecCmd(_ pkg.Package) *exec.Cmd { return nil }
 
 func (n *NPM) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	out, err := n.run(ctx, "npm", "list", "--global", "--depth=0", "--json")
-	if err != nil {
-		// npm list returns non-zero exit if there are peer dep issues; try to parse anyway
-		if out == "" {
-			return nil, fmt.Errorf("npm list packages: %w", err)
-		}
+	if err != nil && out == "" {
+		return nil, fmt.Errorf("npm list packages: %w", err)
 	}
+	// npm may return non-zero due to peer dep warnings but still emit valid JSON.
 
 	var result struct {
 		Dependencies map[string]struct {
 			Version string `json:"version"`
 		} `json:"dependencies"`
 	}
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		return nil, fmt.Errorf("npm list parse: %w", err)
+	if parseErr := json.Unmarshal([]byte(out), &result); parseErr != nil {
+		if err != nil {
+			return nil, fmt.Errorf("npm list packages: command failed: %w; parse failed: %v", err, parseErr)
+		}
+		return nil, fmt.Errorf("npm list parse: %w", parseErr)
 	}
 
 	var packages []pkg.Package
@@ -53,11 +59,7 @@ func (n *NPM) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-func (n *NPM) Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error {
-	if dryRun {
-		fmt.Printf("[dry-run] npm uninstall --global %s\n", p.Name)
-		return nil
-	}
+func (n *NPM) Uninstall(ctx context.Context, p pkg.Package) error {
 	_, err := n.run(ctx, "npm", "uninstall", "--global", p.Name)
 	if err != nil {
 		return fmt.Errorf("npm uninstall %s: %w", p.Name, err)

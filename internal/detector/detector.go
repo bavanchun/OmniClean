@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -19,11 +20,19 @@ type Detector interface {
 	Name() string
 	// Available returns true if the package manager is installed on the system.
 	Available() bool
+	// NeedsSudo returns true if uninstalling requires elevated privileges.
+	NeedsSudo() bool
+	// DryRunCommand returns the shell command string that would be executed,
+	// without actually running it.
+	DryRunCommand(p pkg.Package) string
+	// UninstallExecCmd returns the *exec.Cmd to run for interactive uninstall
+	// (e.g. with sudo password prompt). Only meaningful when NeedsSudo() is true.
+	UninstallExecCmd(p pkg.Package) *exec.Cmd
 	// ListPackages returns all packages installed by this manager.
 	ListPackages(ctx context.Context) ([]pkg.Package, error)
-	// Uninstall removes the given package. If dryRun is true, it prints the
-	// command that would be run without executing it.
-	Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error
+	// Uninstall removes the given package. For managers requiring sudo,
+	// the TUI handles execution via UninstallExecCmd instead.
+	Uninstall(ctx context.Context, p pkg.Package) error
 }
 
 // CommandRunner executes an external command and returns its trimmed stdout.
@@ -31,6 +40,7 @@ type Detector interface {
 type CommandRunner func(ctx context.Context, name string, args ...string) (string, error)
 
 // DefaultRunner is the CommandRunner used in production.
+// It captures stdout/stderr into buffers (no stdin — cannot handle interactive prompts).
 func DefaultRunner(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	var stdout, stderr bytes.Buffer
@@ -40,6 +50,17 @@ func DefaultRunner(ctx context.Context, name string, args ...string) (string, er
 		return "", fmt.Errorf("%s %s: %w\nstderr: %s", name, strings.Join(args, " "), err, stderr.String())
 	}
 	return strings.TrimSpace(stdout.String()), nil
+}
+
+// NewSudoExecCmd builds an *exec.Cmd for an interactive sudo command.
+// The returned command connects stdin/stdout/stderr to the real terminal,
+// allowing sudo to prompt for a password.
+func NewSudoExecCmd(name string, args ...string) *exec.Cmd {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd
 }
 
 // LookPath wraps exec.LookPath so detectors can check binary availability.

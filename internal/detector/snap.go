@@ -3,6 +3,7 @@ package detector
 import (
 	"context"
 	"fmt"
+	"os/exec"
 	"strings"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
@@ -18,10 +19,16 @@ func NewSnap(run CommandRunner) *Snap {
 	return &Snap{run: run}
 }
 
-func (s *Snap) Name() string { return "snap" }
+func (s *Snap) Name() string    { return "snap" }
+func (s *Snap) NeedsSudo() bool { return true }
+func (s *Snap) Available() bool { return LookPath("snap") }
 
-func (s *Snap) Available() bool {
-	return LookPath("snap")
+func (s *Snap) DryRunCommand(p pkg.Package) string {
+	return fmt.Sprintf("sudo snap remove %s", p.Name)
+}
+
+func (s *Snap) UninstallExecCmd(p pkg.Package) *exec.Cmd {
+	return NewSudoExecCmd("sudo", "snap", "remove", p.Name)
 }
 
 func (s *Snap) ListPackages(ctx context.Context) ([]pkg.Package, error) {
@@ -51,14 +58,7 @@ func (s *Snap) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
-func (s *Snap) Uninstall(ctx context.Context, p pkg.Package, dryRun bool) error {
-	if dryRun {
-		fmt.Printf("[dry-run] sudo snap remove %s\n", p.Name)
-		return nil
-	}
-	_, err := s.run(ctx, "sudo", "snap", "remove", p.Name)
-	if err != nil {
-		return fmt.Errorf("snap uninstall %s: %w", p.Name, err)
-	}
-	return nil
+// Uninstall is not used for Snap since NeedsSudo=true.
+func (s *Snap) Uninstall(_ context.Context, p pkg.Package) error {
+	return fmt.Errorf("snap: use UninstallExecCmd for interactive sudo uninstall of %s", p.Name)
 }

@@ -13,12 +13,13 @@ import (
 type confirmModel struct {
 	packages []pkg.Package
 	dryRun   bool
+	hasSudo  bool // true if any selected package requires sudo
 	styles   Styles
 	width    int
 }
 
-func newConfirmModel(packages []pkg.Package, dryRun bool, styles Styles) confirmModel {
-	return confirmModel{packages: packages, dryRun: dryRun, styles: styles}
+func newConfirmModel(packages []pkg.Package, dryRun, hasSudo bool, styles Styles) confirmModel {
+	return confirmModel{packages: packages, dryRun: dryRun, hasSudo: hasSudo, styles: styles}
 }
 
 func (m confirmModel) Init() tea.Cmd { return nil }
@@ -65,8 +66,16 @@ func (m confirmModel) View() string {
 	if m.dryRun {
 		fmt.Fprintln(&b, m.styles.DryRunBadge.Render(" DRY RUN — no changes will be made "))
 		fmt.Fprintln(&b)
+	} else if m.hasSudo {
+		warnStyle := m.styles.DryRunBadge
+		fmt.Fprintln(&b, warnStyle.Render(" ⚠  Some packages require administrator access (sudo) "))
+		fmt.Fprintln(&b)
 	}
 	fmt.Fprint(&b, m.styles.HelpBar.Render("  [y] confirm  [n/esc] cancel"))
 
-	return m.styles.Border.Width(m.width - 4).Render(b.String())
+	width := m.width - 4
+	if width < 10 {
+		width = 10
+	}
+	return m.styles.Border.Width(width).Render(b.String())
 }
