@@ -1,0 +1,27 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - staticcheck
+    - unused
+    - gosimple
+    - ineffassign
+    - typecheck
+    - misspell
+    - revive
+    - gofmt
+    - gocritic
+
+linters-settings:
+  revive:
+    rules:
+      - name: exported
+        disabled: true  # internal/ has no exported docs requirement
+
+issues:
+  exclude-rules:
+    - path: "_test\\.go"
+      linters:
+        - errcheck
