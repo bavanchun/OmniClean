@@ -27,7 +27,7 @@ type packageDelegate struct {
 }
 
 func (d packageDelegate) Height() int                               { return 1 }
-func (d packageDelegate) Spacing() int                             { return 0 }
+func (d packageDelegate) Spacing() int                              { return 0 }
 func (d packageDelegate) Update(msg tea.Msg, m *list.Model) tea.Cmd { return nil }
 
 func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.Item) {
