@@ -54,6 +54,13 @@ type App struct {
 	err           error
 	width, height int
 
+	// loading state (per-detector progress)
+	detectorCh    chan DetectorDoneMsg
+	detectorNames []string
+	loadPackages  []pkg.Package
+	loadWarnings  []string
+	doneCount     int
+
 	// sudo uninstall sequencing
 	detectorMap    map[string]detector.Detector
 	sudoQueue      []pkg.Package // packages waiting to be uninstalled via tea.Exec
@@ -97,10 +104,44 @@ func (a *App) Run(ctx context.Context) error {
 // --- Bubbletea interface ---
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(
-		a.spinner.Tick,
-		a.loadPackagesCmd(),
-	)
+	return a.startLoading()
+}
+
+// startLoading resets loading state, spawns the detection goroutine, and
+// returns the commands to drive the spinner and read per-detector results.
+func (a *App) startLoading() tea.Cmd {
+	a.detectorNames = make([]string, len(a.config.Detectors))
+	for i, d := range a.config.Detectors {
+		a.detectorNames[i] = d.Name()
+	}
+	a.detectorCh = make(chan DetectorDoneMsg)
+	a.loadPackages = nil
+	a.loadWarnings = nil
+	a.doneCount = 0
+
+	detectors := a.config.Detectors
+	ch := a.detectorCh
+	go func() {
+		ctx := context.Background()
+		for _, d := range detectors {
+			pkgs, err := d.ListPackages(ctx)
+			ch <- DetectorDoneMsg{Name: d.Name(), Packages: pkgs, Err: err}
+		}
+		close(ch)
+	}()
+
+	return tea.Batch(a.spinner.Tick, waitForDetector(a.detectorCh))
+}
+
+// waitForDetector returns a Cmd that reads one result from the detector channel.
+func waitForDetector(ch chan DetectorDoneMsg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-ch
+		if !ok {
+			return allDetectorsDoneMsg{}
+		}
+		return msg
+	}
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -123,7 +164,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.results = nil
 				a.normalDone = false
 				a.sudoDone = false
-				return a, tea.Batch(a.spinner.Tick, a.loadPackagesCmd())
+				return a, a.startLoading()
 			}
 		case "esc":
 			switch a.state {
@@ -136,16 +177,25 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case PackagesLoadedMsg:
-		a.packages = msg.Packages
-		a.list = newListModel(a.packages, a.styles, msg.Warnings)
+	case DetectorDoneMsg:
+		a.doneCount++
+		if msg.Err != nil {
+			a.loadWarnings = append(a.loadWarnings, msg.Name)
+		} else {
+			a.loadPackages = append(a.loadPackages, msg.Packages...)
+		}
+		return a, waitForDetector(a.detectorCh)
+
+	case allDetectorsDoneMsg:
+		if len(a.loadPackages) == 0 && len(a.loadWarnings) > 0 {
+			a.err = fmt.Errorf("all detectors failed: %s", strings.Join(a.loadWarnings, ", "))
+			a.state = stateError
+			return a, nil
+		}
+		a.packages = a.loadPackages
+		a.list = newListModel(a.packages, a.styles, a.loadWarnings)
 		a.list.list.SetSize(a.width, a.height-4)
 		a.state = stateList
-		return a, nil
-
-	case PackagesLoadErrorMsg:
-		a.err = msg.Err
-		a.state = stateError
 		return a, nil
 
 	case confirmYesMsg:
@@ -241,7 +291,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (a *App) View() string {
 	switch a.state {
 	case stateLoading:
-		return fmt.Sprintf("\n  %s Detecting installed packages...\n", a.spinner.View())
+		return a.splashView()
 	case stateList:
 		return a.list.View()
 	case stateDetail:
@@ -264,29 +314,6 @@ func (a *App) View() string {
 }
 
 // --- Commands ---
-
-func (a *App) loadPackagesCmd() tea.Cmd {
-	detectors := a.config.Detectors
-	return func() tea.Msg {
-		ctx := context.Background()
-		var packages []pkg.Package
-		var warnings []string
-		for _, d := range detectors {
-			pkgs, err := d.ListPackages(ctx)
-			if err != nil {
-				warnings = append(warnings, d.Name())
-				continue
-			}
-			packages = append(packages, pkgs...)
-		}
-		if len(packages) == 0 && len(warnings) > 0 {
-			return PackagesLoadErrorMsg{
-				Err: fmt.Errorf("all detectors failed: %s", strings.Join(warnings, ", ")),
-			}
-		}
-		return PackagesLoadedMsg{Packages: packages, Warnings: warnings}
-	}
-}
 
 // startUninstall partitions packages into sudo and normal, then launches both flows.
 func (a *App) startUninstall(packages []pkg.Package) tea.Cmd {
@@ -441,3 +468,54 @@ func (a *App) resultView() string {
 
 // sudoAllDoneMsg is sent when all sudo packages have been processed.
 type sudoAllDoneMsg struct{}
+
+// splashView renders the branded loading/splash screen.
+func (a *App) splashView() string {
+	titleStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#7C3AED")).
+		Bold(true)
+	taglineStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#A0AEC0"))
+	checkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096"))
+	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E9D8FD"))
+
+	title := titleStyle.Render("✦  OmniClean  ✦")
+	tagline := taglineStyle.Render("Clean up your system, one package at a time")
+
+	boxWidth := max(lipgloss.Width(title), lipgloss.Width(tagline)) + 8
+	box := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#7C3AED")).
+		Padding(1, 3).
+		Width(boxWidth).
+		Align(lipgloss.Center)
+
+	boxContent := lipgloss.JoinVertical(lipgloss.Center, title, "", tagline)
+
+	// Per-detector progress
+	var progressParts []string
+	for i, name := range a.detectorNames {
+		switch {
+		case i < a.doneCount:
+			progressParts = append(progressParts, checkStyle.Render("✓")+" "+dimStyle.Render(name))
+		case i == a.doneCount:
+			progressParts = append(progressParts, a.spinner.View()+" "+activeStyle.Render(name)+"…")
+		}
+	}
+	progressLine := strings.Join(progressParts, "   ")
+
+	countLine := ""
+	if len(a.loadPackages) > 0 {
+		countLine = dimStyle.Render(fmt.Sprintf("%d packages found so far", len(a.loadPackages)))
+	}
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		box.Render(boxContent),
+		"",
+		progressLine,
+		countLine,
+	)
+
+	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, content)
+}
