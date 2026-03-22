@@ -18,8 +18,8 @@ func TestFlatpak_ListPackages(t *testing.T) {
 		check   func(t *testing.T, pkgs []pkg.Package)
 	}{
 		{
-			name:    "parses two apps",
-			output:  "org.mozilla.firefox\t121.0\norg.videolan.VLC\t3.0.20\n",
+			name:    "parses two apps with size",
+			output:  "org.mozilla.firefox\t121.0\t286.4 MB\norg.videolan.VLC\t3.0.20\t56.6 MB\n",
 			wantLen: 2,
 			check: func(t *testing.T, pkgs []pkg.Package) {
 				t.Helper()
@@ -32,16 +32,24 @@ func TestFlatpak_ListPackages(t *testing.T) {
 				if pkgs[0].Manager != pkg.ManagerFlatpak {
 					t.Errorf("Manager = %q, want %q", pkgs[0].Manager, pkg.ManagerFlatpak)
 				}
+				// 286.4 MB = 2864 * 1024 * 1024 / 10
+				wantSize := int64(2864) * 1024 * 1024 / 10
+				if pkgs[0].Size != wantSize {
+					t.Errorf("Size = %d, want ~%d", pkgs[0].Size, wantSize)
+				}
 			},
 		},
 		{
-			name:    "app with no version",
+			name:    "app with no version or size",
 			output:  "org.example.App\n",
 			wantLen: 1,
 			check: func(t *testing.T, pkgs []pkg.Package) {
 				t.Helper()
 				if pkgs[0].Version != "" {
 					t.Errorf("Version = %q, want empty", pkgs[0].Version)
+				}
+				if pkgs[0].Size != 0 {
+					t.Errorf("Size = %d, want 0", pkgs[0].Size)
 				}
 			},
 		},

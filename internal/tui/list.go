@@ -3,6 +3,7 @@ package tui
 import (
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -14,10 +15,12 @@ import (
 
 // listModel wraps bubbles/list and adds multi-select state.
 type listModel struct {
-	list     list.Model
-	selected map[string]bool // key: "manager:name"
-	styles   Styles
-	warnings []string
+	list          list.Model
+	selected      map[string]bool // key: "manager:name"
+	styles        Styles
+	warnings      []string
+	originalItems []pkg.Package // preserved for sort reset
+	sortedBySize  bool
 }
 
 // packageDelegate renders each package row with manager badge and selection checkbox.
@@ -54,17 +57,20 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		name = d.styles.Selected.Render(name)
 	}
 
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096"))
 	badge := d.styles.BadgeFor(string(p.Manager))
-	version := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096")).Render(p.Version)
+	version := dimStyle.Render(p.Version)
 
-	fmt.Fprintf(w, "%s%s %s %s %s", cursor, checkbox, name, badge, version)
+	if p.Size > 0 {
+		sizeStr := dimStyle.Render(formatBytes(p.Size))
+		fmt.Fprintf(w, "%s%s %s %s %s  %s", cursor, checkbox, name, badge, version, sizeStr)
+	} else {
+		fmt.Fprintf(w, "%s%s %s %s %s", cursor, checkbox, name, badge, version)
+	}
 }
 
 func newListModel(packages []pkg.Package, styles Styles, warnings []string) listModel {
-	items := make([]list.Item, len(packages))
-	for i, p := range packages {
-		items[i] = p
-	}
+	items := packagesToItems(packages)
 
 	selected := make(map[string]bool)
 	delegate := packageDelegate{styles: styles, selected: selected}
@@ -76,10 +82,11 @@ func newListModel(packages []pkg.Package, styles Styles, warnings []string) list
 	l.Styles.Title = styles.Title
 
 	return listModel{
-		list:     l,
-		selected: selected,
-		styles:   styles,
-		warnings: warnings,
+		list:          l,
+		selected:      selected,
+		styles:        styles,
+		warnings:      warnings,
+		originalItems: packages,
 	}
 }
 
@@ -90,10 +97,24 @@ func (m listModel) Init() tea.Cmd {
 func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		if msg.String() == " " {
+		switch msg.String() {
+		case " ":
 			if item, ok := m.list.SelectedItem().(pkg.Package); ok {
 				key := selectionKey(item)
 				m.selected[key] = !m.selected[key]
+			}
+			return m, nil
+		case "s":
+			m.sortedBySize = !m.sortedBySize
+			if m.sortedBySize {
+				sorted := make([]pkg.Package, len(m.originalItems))
+				copy(sorted, m.originalItems)
+				sort.SliceStable(sorted, func(i, j int) bool {
+					return sorted[i].Size > sorted[j].Size
+				})
+				m.list.SetItems(packagesToItems(sorted))
+			} else {
+				m.list.SetItems(packagesToItems(m.originalItems))
 			}
 			return m, nil
 		}
@@ -124,8 +145,12 @@ func (m listModel) View() string {
 		parts = append(parts, warnStyle.Render("  ⚠ Some detectors failed: "+strings.Join(m.warnings, ", ")))
 	}
 
+	sortHint := "s: sort size"
+	if m.sortedBySize {
+		sortHint = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED")).Render("s: sort size ↓")
+	}
 	status := m.styles.StatusBar.Render(
-		fmt.Sprintf("%d selected  ·  space: select  d: details  enter: confirm  q: quit", selectedCount),
+		fmt.Sprintf("%d selected  ·  space: select  %s  d: details  enter: confirm  q: quit", selectedCount, sortHint),
 	)
 	parts = append(parts, status)
 
@@ -150,4 +175,12 @@ func (m listModel) SelectedPackages() []pkg.Package {
 
 func selectionKey(p pkg.Package) string {
 	return string(p.Manager) + ":" + p.Name
+}
+
+func packagesToItems(packages []pkg.Package) []list.Item {
+	items := make([]list.Item, len(packages))
+	for i, p := range packages {
+		items[i] = p
+	}
+	return items
 }
