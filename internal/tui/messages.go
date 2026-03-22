@@ -22,3 +22,13 @@ type UninstallCompleteMsg struct {
 type sudoUninstallDoneMsg struct {
 	result pkg.UninstallResult
 }
+
+// DetectorDoneMsg is sent when a single detector finishes scanning.
+type DetectorDoneMsg struct {
+	Name     string
+	Packages []pkg.Package
+	Err      error
+}
+
+// allDetectorsDoneMsg is sent when the detector channel is closed (all done).
+type allDetectorsDoneMsg struct{}
