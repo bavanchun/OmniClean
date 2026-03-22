@@ -18,8 +18,8 @@ type confirmModel struct {
 	width    int
 }
 
-func newConfirmModel(packages []pkg.Package, dryRun, hasSudo bool, styles Styles) confirmModel {
-	return confirmModel{packages: packages, dryRun: dryRun, hasSudo: hasSudo, styles: styles}
+func newConfirmModel(packages []pkg.Package, dryRun, hasSudo bool, styles Styles, width int) confirmModel {
+	return confirmModel{packages: packages, dryRun: dryRun, hasSudo: hasSudo, styles: styles, width: width}
 }
 
 func (m confirmModel) Init() tea.Cmd { return nil }

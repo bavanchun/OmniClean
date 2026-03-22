@@ -18,9 +18,9 @@ func TestAPT_ListPackages(t *testing.T) {
 		check   func(t *testing.T, pkgs []pkg.Package)
 	}{
 		{
-			name: "parses two packages",
-			output: "curl\t7.88.1-10\t712\tcommand line tool for transferring data with URL syntax\n" +
-				"vim\t2:9.0.1378-2\t3716\tVi IMproved - enhanced vi editor\n",
+			name: "parses two installed packages",
+			output: "ii \tcurl\t7.88.1-10\t712\tcommand line tool for transferring data with URL syntax\n" +
+				"ii \tvim\t2:9.0.1378-2\t3716\tVi IMproved - enhanced vi editor\n",
 			wantLen: 2,
 			check: func(t *testing.T, pkgs []pkg.Package) {
 				t.Helper()
@@ -35,6 +35,18 @@ func TestAPT_ListPackages(t *testing.T) {
 				}
 				if pkgs[0].Manager != pkg.ManagerAPT {
 					t.Errorf("got Manager %q, want %q", pkgs[0].Manager, pkg.ManagerAPT)
+				}
+			},
+		},
+		{
+			name: "skips rc (removed, config-files) packages",
+			output: "ii \tcurl\t7.88.1-10\t712\tcommand line tool\n" +
+				"rc \twps-office\t11.1.0\t1000\tWPS Office\n",
+			wantLen: 1,
+			check: func(t *testing.T, pkgs []pkg.Package) {
+				t.Helper()
+				if pkgs[0].Name != "curl" {
+					t.Errorf("got Name %q, want %q", pkgs[0].Name, "curl")
 				}
 			},
 		},

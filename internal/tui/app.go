@@ -55,10 +55,11 @@ type App struct {
 	width, height int
 
 	// sudo uninstall sequencing
-	detectorMap map[string]detector.Detector
-	sudoQueue   []pkg.Package // packages waiting to be uninstalled via tea.Exec
-	normalDone  bool          // normal (non-sudo) batch finished
-	sudoDone    bool          // all sudo packages finished
+	detectorMap    map[string]detector.Detector
+	sudoQueue      []pkg.Package // packages waiting to be uninstalled via tea.Exec
+	sudoCurrentPkg *pkg.Package  // package currently being sudo-uninstalled
+	normalDone     bool          // normal (non-sudo) batch finished
+	sudoDone       bool          // all sudo packages finished
 }
 
 // New creates the App model ready to be run.
@@ -116,6 +117,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.state == stateList || a.state == stateError || a.state == stateResult {
 				return a, tea.Quit
 			}
+		case "enter", "r":
+			if a.state == stateResult {
+				a.state = stateLoading
+				a.results = nil
+				a.normalDone = false
+				a.sudoDone = false
+				return a, tea.Batch(a.spinner.Tick, a.loadPackagesCmd())
+			}
 		case "esc":
 			switch a.state {
 			case stateDetail:
@@ -162,6 +171,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, nil
 
 	case sudoUninstallDoneMsg:
+		a.sudoCurrentPkg = nil
 		a.results = append(a.results, msg.result)
 		return a, a.execNextSudo()
 
@@ -191,7 +201,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 						return a, a.startUninstall(selected)
 					}
 					hasSudo := a.selectedNeedSudo(selected)
-					a.confirm = newConfirmModel(selected, a.config.DryRun, hasSudo, a.styles)
+					a.confirm = newConfirmModel(selected, a.config.DryRun, hasSudo, a.styles, a.width)
 					a.state = stateConfirm
 					return a, nil
 				}
@@ -239,6 +249,10 @@ func (a *App) View() string {
 	case stateConfirm:
 		return a.confirm.View()
 	case stateUninstalling:
+		if a.sudoCurrentPkg != nil {
+			return fmt.Sprintf("\n  Uninstalling %s (requires sudo)...\n\n  The terminal will prompt for your password.\n",
+				a.sudoCurrentPkg.Name)
+		}
 		return fmt.Sprintf("\n  %s Uninstalling packages...\n", a.spinner.View())
 	case stateResult:
 		return a.resultView()
@@ -356,6 +370,7 @@ func (a *App) execNextSudo() tea.Cmd {
 		return func() tea.Msg { return sudoUninstallDoneMsg{result: r} }
 	}
 
+	a.sudoCurrentPkg = &p
 	captured := p // capture for closure
 	return tea.ExecProcess(execCmd, func(err error) tea.Msg {
 		return sudoUninstallDoneMsg{result: pkg.UninstallResult{Package: captured, Err: err}}
@@ -419,7 +434,7 @@ func (a *App) resultView() string {
 		}
 	}
 	fmt.Fprintln(&b, a.styles.StatusBar.Render(summary))
-	fmt.Fprint(&b, a.styles.HelpBar.Render("\n  Press q to quit"))
+	fmt.Fprint(&b, a.styles.HelpBar.Render("\n  enter/r: back to list  ·  q: quit"))
 
 	return b.String()
 }
