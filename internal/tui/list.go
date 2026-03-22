@@ -25,8 +25,27 @@ type listModel struct {
 
 // packageDelegate renders each package row with manager badge and selection checkbox.
 type packageDelegate struct {
-	styles   Styles
-	selected map[string]bool // shared reference — Go maps are reference types
+	styles       Styles
+	selected     map[string]bool // shared reference — Go maps are reference types
+	nameWidth    int             // max name length across all packages
+	versionWidth int             // max version length
+	badgeWidth   int             // max badge length e.g. len("[flatpak]")=9
+}
+
+// calcColumnWidths returns the max name, version, and badge widths across packages.
+func calcColumnWidths(packages []pkg.Package) (nameW, versionW, badgeW int) {
+	for _, p := range packages {
+		if n := len(p.Name); n > nameW {
+			nameW = n
+		}
+		if v := len(p.Version); v > versionW {
+			versionW = v
+		}
+		if b := len(string(p.Manager)) + 2; b > badgeW { // "[manager]"
+			badgeW = b
+		}
+	}
+	return
 }
 
 func (d packageDelegate) Height() int                               { return 1 }
@@ -52,20 +71,31 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 		checkbox = lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true).Render("[✓]")
 	}
 
-	name := p.Name
+	// Name column — style first, then pad the remaining space with plain spaces.
+	namePad := strings.Repeat(" ", max(0, d.nameWidth-len(p.Name)))
+	var nameCol string
 	if isCursor {
-		name = d.styles.Selected.Render(name)
+		nameCol = d.styles.Selected.Render(p.Name) + namePad
+	} else {
+		nameCol = p.Name + namePad
 	}
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096"))
-	badge := d.styles.BadgeFor(string(p.Manager))
-	version := dimStyle.Render(p.Version)
+	// Badge column — pad raw width, then apply color.
+	badgePad := strings.Repeat(" ", max(0, d.badgeWidth-(len(string(p.Manager))+2)))
+	badge := d.styles.BadgeFor(string(p.Manager)) + badgePad
 
+	// Version column — pad then dim.
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096"))
+	verPad := p.Version + strings.Repeat(" ", max(0, d.versionWidth-len(p.Version)))
+	version := dimStyle.Render(verPad)
+
+	// Size column — right-aligned to 10 chars.
 	if p.Size > 0 {
-		sizeStr := dimStyle.Render(formatBytes(p.Size))
-		fmt.Fprintf(w, "%s%s %s %s %s  %s", cursor, checkbox, name, badge, version, sizeStr)
+		sizeStr := formatBytes(p.Size)
+		sizePad := strings.Repeat(" ", max(0, 10-len(sizeStr)))
+		fmt.Fprintf(w, "%s%s %s  %s  %s  %s%s", cursor, checkbox, nameCol, badge, version, sizePad, dimStyle.Render(sizeStr))
 	} else {
-		fmt.Fprintf(w, "%s%s %s %s %s", cursor, checkbox, name, badge, version)
+		fmt.Fprintf(w, "%s%s %s  %s  %s", cursor, checkbox, nameCol, badge, version)
 	}
 }
 
@@ -73,7 +103,11 @@ func newListModel(packages []pkg.Package, styles Styles, warnings []string) list
 	items := packagesToItems(packages)
 
 	selected := make(map[string]bool)
-	delegate := packageDelegate{styles: styles, selected: selected}
+	nameW, versionW, badgeW := calcColumnWidths(packages)
+	delegate := packageDelegate{
+		styles: styles, selected: selected,
+		nameWidth: nameW, versionWidth: versionW, badgeWidth: badgeW,
+	}
 
 	l := list.New(items, delegate, 0, 0)
 	l.Title = "OmniClean"
