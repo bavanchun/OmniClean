@@ -1,7 +1,11 @@
 // Package pkg defines the core data types used throughout OmniClean.
 package pkg
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+	"strings"
+)
 
 // ManagerType identifies which package manager owns a package.
 type ManagerType string
@@ -47,6 +51,33 @@ func (p Package) Desc() string {
 		return fmt.Sprintf("[%s %s] %s", p.Manager, p.Version, p.Description)
 	}
 	return fmt.Sprintf("[%s] %s", p.Manager, p.Version)
+}
+
+// ParseHumanSize converts a human-readable size string (e.g. "56.6 MB", "1.2 GB")
+// to bytes. Returns 0 if the string cannot be parsed.
+func ParseHumanSize(s string) int64 {
+	s = strings.TrimSpace(s)
+	parts := strings.Fields(s)
+	if len(parts) != 2 {
+		return 0
+	}
+	val, err := strconv.ParseFloat(parts[0], 64)
+	if err != nil || val < 0 {
+		return 0
+	}
+	switch strings.ToUpper(parts[1]) {
+	case "B":
+		return int64(val)
+	case "KB", "KIB":
+		return int64(val * 1024)
+	case "MB", "MIB":
+		return int64(val * 1024 * 1024)
+	case "GB", "GIB":
+		return int64(val * 1024 * 1024 * 1024)
+	case "TB", "TIB":
+		return int64(val * 1024 * 1024 * 1024 * 1024)
+	}
+	return 0
 }
 
 // UninstallResult holds the outcome of a single package removal operation.

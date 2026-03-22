@@ -30,7 +30,7 @@ func (f *Flatpak) DryRunCommand(p pkg.Package) string {
 func (f *Flatpak) UninstallExecCmd(_ pkg.Package) *exec.Cmd { return nil }
 
 func (f *Flatpak) ListPackages(ctx context.Context) ([]pkg.Package, error) {
-	out, err := f.run(ctx, "flatpak", "list", "--app", "--columns=application,version")
+	out, err := f.run(ctx, "flatpak", "list", "--app", "--columns=application,version,size")
 	if err != nil {
 		return nil, fmt.Errorf("flatpak list packages: %w", err)
 	}
@@ -41,13 +41,16 @@ func (f *Flatpak) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\t", 2)
+		parts := strings.SplitN(line, "\t", 3)
 		p := pkg.Package{
 			Name:    parts[0],
 			Manager: pkg.ManagerFlatpak,
 		}
 		if len(parts) >= 2 {
 			p.Version = parts[1]
+		}
+		if len(parts) >= 3 {
+			p.Size = pkg.ParseHumanSize(parts[2])
 		}
 		packages = append(packages, p)
 	}

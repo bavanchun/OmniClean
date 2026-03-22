@@ -3,6 +3,8 @@ package tui
 import (
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
 
@@ -60,5 +62,47 @@ func TestListModel_SelectedPackages(t *testing.T) {
 	}
 	if names["vim"] {
 		t.Error("vim should not be selected")
+	}
+}
+
+func TestListModel_SortBySize(t *testing.T) {
+	packages := []pkg.Package{
+		{Name: "small", Manager: "apt", Size: 1024},
+		{Name: "large", Manager: "apt", Size: 1024 * 1024 * 100},
+		{Name: "medium", Manager: "apt", Size: 1024 * 1024},
+		{Name: "unknown", Manager: "pip", Size: 0},
+	}
+	m := newListModel(packages, DefaultStyles(), nil)
+
+	// Press 's' to sort by size descending.
+	sKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}
+	m, _ = m.Update(sKey)
+
+	if !m.sortedBySize {
+		t.Fatal("sortedBySize should be true after pressing s")
+	}
+
+	items := m.list.Items()
+	if len(items) != 4 {
+		t.Fatalf("got %d items, want 4", len(items))
+	}
+
+	first, ok := items[0].(pkg.Package)
+	if !ok {
+		t.Fatal("items[0] is not a Package")
+	}
+	if first.Name != "large" {
+		t.Errorf("items[0] = %q, want %q (largest size first)", first.Name, "large")
+	}
+
+	// Press 's' again to restore original order.
+	m, _ = m.Update(sKey)
+	if m.sortedBySize {
+		t.Error("sortedBySize should be false after second press")
+	}
+	items = m.list.Items()
+	first, _ = items[0].(pkg.Package)
+	if first.Name != "small" {
+		t.Errorf("after restore, items[0] = %q, want %q (original order)", first.Name, "small")
 	}
 }
