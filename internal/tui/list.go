@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/list"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/muesli/reflow/truncate"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -29,27 +30,8 @@ type listModel struct {
 
 // packageDelegate renders each package row with manager badge and selection checkbox.
 type packageDelegate struct {
-	styles       Styles
-	selected     map[string]bool // shared reference — Go maps are reference types
-	nameWidth    int             // max name length across all packages
-	versionWidth int             // max version length
-	badgeWidth   int             // max badge length e.g. len("[flatpak]")=9
-}
-
-// calcColumnWidths returns the max name, version, and badge widths across packages.
-func calcColumnWidths(packages []pkg.Package) (nameW, versionW, badgeW int) {
-	for _, p := range packages {
-		if n := len(p.Name); n > nameW {
-			nameW = n
-		}
-		if v := len(p.Version); v > versionW {
-			versionW = v
-		}
-		if b := len(string(p.Manager)) + 2; b > badgeW { // "[manager]"
-			badgeW = b
-		}
-	}
-	return
+	styles   Styles
+	selected map[string]bool // shared reference — Go maps are reference types
 }
 
 func (d packageDelegate) Height() int                               { return 1 }
@@ -65,6 +47,7 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	isCursor := index == m.Index()
 	isChecked := d.selected[selectionKey(p)]
 
+	// Checkbox & Cursor
 	cursor := "  "
 	if isCursor {
 		cursor = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render("▸ ")
@@ -74,43 +57,73 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	if isChecked {
 		checkbox = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true).Render("[✓]")
 	}
+	stateCol := fmt.Sprintf("%s%s ", cursor, checkbox) // approx 6 chars width
 
-	// Name column — style first, then pad the remaining space with plain spaces.
-	namePad := strings.Repeat(" ", max(0, d.nameWidth-len(p.Name)))
-	var nameCol string
-	if isCursor {
-		nameCol = d.styles.Selected.Render(p.Name) + namePad
-	} else {
-		nameCol = p.Name + namePad
-	}
+	// Badge (ColWidthBadge)
+	badgeCol := lipgloss.NewStyle().Width(ColWidthBadge).Render(d.styles.BadgeFor(string(p.Manager)))
 
-	// Badge column — pad raw width, then apply color.
-	badgePad := strings.Repeat(" ", max(0, d.badgeWidth-(len(string(p.Manager))+2)))
-	badge := d.styles.BadgeFor(string(p.Manager)) + badgePad
-
-	// Version column — pad then dim.
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
-	verPad := p.Version + strings.Repeat(" ", max(0, d.versionWidth-len(p.Version)))
-	version := dimStyle.Render(verPad)
-
-	// Size column — right-aligned to 10 chars.
+	// Size (ColWidthSize) - Right aligned
+	sizeStr := ""
 	if p.Size > 0 {
-		sizeStr := formatBytes(p.Size)
-		sizePad := strings.Repeat(" ", max(0, 10-len(sizeStr)))
-		fmt.Fprintf(w, "%s%s %s  %s  %s  %s%s", cursor, checkbox, nameCol, badge, version, sizePad, dimStyle.Render(sizeStr))
-	} else {
-		fmt.Fprintf(w, "%s%s %s  %s  %s", cursor, checkbox, nameCol, badge, version)
+		sizeStr = formatBytes(p.Size)
 	}
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+	sizeCol := lipgloss.NewStyle().Width(ColWidthSize).Align(lipgloss.Right).Render(dimStyle.Render(sizeStr))
+
+	// Version (ColWidthVersion) - Truncate if too long
+	versionText := p.Version
+	if len(versionText) > ColWidthVersion {
+		versionText = truncate.StringWithTail(versionText, uint(ColWidthVersion), "…")
+	}
+	versionCol := lipgloss.NewStyle().Width(ColWidthVersion).Render(dimStyle.Render(versionText))
+
+	// Name (Flexible Width)
+	const listChromeWidth = 4 // Margins/padding added by bubbles/list
+	fixedWidths := 6 /* state */ + ColWidthBadge + ColWidthVersion + ColWidthSize + 4 /* spaces */
+	
+	nameWidth := m.Width() - fixedWidths - listChromeWidth
+	if nameWidth < 10 {
+		nameWidth = 10
+	}
+
+	nameText := p.Name
+	if len(nameText) > nameWidth {
+		nameText = truncate.StringWithTail(nameText, uint(nameWidth), "…")
+	}
+
+	nameStyle := lipgloss.NewStyle()
+	if isCursor {
+		nameStyle = d.styles.SelectedText
+	}
+	nameCol := lipgloss.NewStyle().Width(nameWidth).Render(nameStyle.Render(nameText))
+
+	// Assemble Row
+	row := lipgloss.JoinHorizontal(lipgloss.Left,
+		stateCol,
+		badgeCol,
+		nameCol,
+		"  ",
+		versionCol,
+		"  ",
+		sizeCol,
+	)
+
+	// In Bubbles/List, applying background to full width requires adding a padding fill
+	if isCursor {
+		fill := max(0, m.Width()-listChromeWidth-lipgloss.Width(row))
+		row = row + strings.Repeat(" ", fill)
+		row = d.styles.SelectedRow.Render(row)
+	}
+
+	fmt.Fprint(w, row)
 }
 
 func newListModel(packages []pkg.Package, styles Styles, warnings []string) listModel {
 	items := packagesToItems(packages)
 
 	selected := make(map[string]bool)
-	nameW, versionW, badgeW := calcColumnWidths(packages)
 	delegate := packageDelegate{
 		styles: styles, selected: selected,
-		nameWidth: nameW, versionWidth: versionW, badgeWidth: badgeW,
 	}
 
 	l := list.New(items, delegate, 0, 0)
@@ -213,18 +226,36 @@ func (m listModel) View() string {
 		parts = append(parts, warnStyle.Render("  ⚠ Some detectors failed: "+strings.Join(m.warnings, ", ")))
 	}
 
-	// Selection counter
-	counterStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
+	// Selection status bar
+	statusStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color(ColorPrimary)).
+		Padding(0, 1).
+		Bold(true)
+		
 	sortIndicator := ""
 	if m.sortedBySize {
-		sortIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render(" ↓size")
+		sortIndicator = " ↓size"
 	}
-	counter := counterStyle.Render(fmt.Sprintf("  %d selected", selectedCount)) + sortIndicator
+	
+	statusText := fmt.Sprintf("%d selected%s", selectedCount, sortIndicator)
+	leftStatus := statusStyle.Render(statusText)
+	
+	// Create a full-width status line using the selected row background color
+	listWidth := m.list.Width()
+	if listWidth == 0 {
+		listWidth = 80 // fallback
+	}
+	
+	fillWidth := max(0, listWidth - lipgloss.Width(leftStatus))
+	fill := lipgloss.NewStyle().Background(lipgloss.Color(ColorSelectedBg)).Render(strings.Repeat(" ", fillWidth))
+	
+	statusBar := lipgloss.JoinHorizontal(lipgloss.Left, leftStatus, fill)
 
 	// Help component
 	helpView := m.help.View(m.keys)
 
-	parts = append(parts, counter)
+	parts = append(parts, statusBar)
 	parts = append(parts, "  "+helpView)
 
 	return strings.Join(parts, "\n")

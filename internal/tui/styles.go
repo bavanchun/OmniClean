@@ -16,9 +16,18 @@ const (
 	ColorSubtle     = "#A0AEC0" // light gray
 	ColorAccent     = "#E9D8FD" // lavender
 	ColorBg         = "#1A202C" // dark bg
-	ColorBorder     = "#4A5568" // border gray
-	ColorProgressA  = "#7C3AED" // progress gradient start
-	ColorProgressB  = "#E9D8FD" // progress gradient end
+	ColorBorder          = "#4A5568" // border gray
+	ColorProgressA       = "#7C3AED" // progress gradient start
+	ColorProgressB       = "#E9D8FD" // progress gradient end
+	ColorSelectedBg      = "#2D3748" // dark subtle background for selected row
+)
+
+// Fixed column widths for List and Confirm views
+const (
+	ColWidthCheckbox = 4
+	ColWidthBadge    = 11 // "[manager] " (e.g. "[flatpak] " = max 10 chars + space)
+	ColWidthVersion  = 25
+	ColWidthSize     = 10
 )
 
 // Styles holds all Lipgloss styles used in the application.
@@ -27,7 +36,8 @@ type Styles struct {
 	StatusBar    lipgloss.Style
 	HelpBar      lipgloss.Style
 	ManagerBadge map[string]lipgloss.Style
-	Selected     lipgloss.Style
+	SelectedText lipgloss.Style
+	SelectedRow  lipgloss.Style
 	DryRunBadge  lipgloss.Style
 	ErrorText    lipgloss.Style
 	Border       lipgloss.Style
@@ -55,9 +65,12 @@ func DefaultStyles() Styles {
 		HelpBar: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorDim)),
 
-		Selected: lipgloss.NewStyle().
+		SelectedText: lipgloss.NewStyle().
 			Foreground(lipgloss.Color(ColorPrimary)).
 			Bold(true),
+
+		SelectedRow: lipgloss.NewStyle().
+			Background(lipgloss.Color(ColorSelectedBg)),
 
 		DryRunBadge: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#000000")).
