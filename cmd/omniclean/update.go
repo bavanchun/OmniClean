@@ -2,7 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
+	"os/exec"
+	"syscall"
 
 	"github.com/creativeprojects/go-selfupdate"
 	"github.com/spf13/cobra"
@@ -50,9 +54,33 @@ func runUpdate(current string) error {
 	}
 
 	if err := updater.UpdateTo(context.Background(), latest, exe); err != nil {
+		if isPermissionError(err) {
+			return reExecWithSudo()
+		}
 		return fmt.Errorf("update failed: %w", err)
 	}
 
 	fmt.Printf("Successfully updated to %s.\n", latest.Version())
 	return nil
+}
+
+func isPermissionError(err error) bool {
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) {
+		return errors.Is(pathErr.Err, syscall.EACCES)
+	}
+	return false
+}
+
+func reExecWithSudo() error {
+	fmt.Println("Permission denied — re-running with sudo...")
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("could not locate executable: %w", err)
+	}
+	cmd := exec.Command("sudo", exe, "update")
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
 }
