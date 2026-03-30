@@ -32,3 +32,6 @@ type DetectorDoneMsg struct {
 
 // allDetectorsDoneMsg is sent when the detector channel is closed (all done).
 type allDetectorsDoneMsg struct{}
+
+// sudoAllDoneMsg is sent when all sudo packages have been processed.
+type sudoAllDoneMsg struct{}

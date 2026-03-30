@@ -3,7 +3,8 @@ package tui
 import (
 	"testing"
 
-	tea "github.com/charmbracelet/bubbletea"
+	"charm.land/bubbles/v2/key"
+	tea "charm.land/bubbletea/v2"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -74,8 +75,10 @@ func TestListModel_SortBySize(t *testing.T) {
 	}
 	m := newListModel(packages, DefaultStyles(), nil)
 
-	// Press 's' to sort by size descending.
-	sKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}}
+	// Press 's' to sort by size descending — using key.Binding match.
+	sKey := tea.KeyPressMsg(tea.Key{Code: 's'})
+	_ = key.Matches(sKey, m.keys.SortSize) // verify this compiles
+
 	m, _ = m.Update(sKey)
 
 	if !m.sortedBySize {
@@ -104,5 +107,41 @@ func TestListModel_SortBySize(t *testing.T) {
 	first, _ = items[0].(pkg.Package)
 	if first.Name != "small" {
 		t.Errorf("after restore, items[0] = %q, want %q (original order)", first.Name, "small")
+	}
+}
+
+func TestListModel_SelectAll(t *testing.T) {
+	packages := []pkg.Package{
+		{Name: "curl", Manager: "apt", Version: "7.88.1"},
+		{Name: "vim", Manager: "apt", Version: "9.0"},
+	}
+	m := newListModel(packages, DefaultStyles(), nil)
+
+	// Press 'a' to select all
+	aKey := tea.KeyPressMsg(tea.Key{Code: 'a'})
+	m, _ = m.Update(aKey)
+
+	selected := m.SelectedPackages()
+	if len(selected) != 2 {
+		t.Errorf("expected 2 selected after select-all, got %d", len(selected))
+	}
+
+	// Press 'a' again to deselect all
+	m, _ = m.Update(aKey)
+	selected = m.SelectedPackages()
+	if len(selected) != 0 {
+		t.Errorf("expected 0 selected after second select-all, got %d", len(selected))
+	}
+}
+
+func TestDefaultKeyMap_HelpInterface(t *testing.T) {
+	km := DefaultKeyMap()
+	short := km.ShortHelp()
+	if len(short) == 0 {
+		t.Error("ShortHelp should return non-empty bindings")
+	}
+	full := km.FullHelp()
+	if len(full) == 0 {
+		t.Error("FullHelp should return non-empty binding columns")
 	}
 }

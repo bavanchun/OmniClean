@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/table"
+	"charm.land/bubbles/v2/viewport"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bavanchun/OmniClean/internal/cleaner"
 	"github.com/bavanchun/OmniClean/internal/detector"
@@ -32,6 +36,7 @@ type Config struct {
 	Detectors []detector.Detector
 	DryRun    bool
 	NoConfirm bool
+	Verbose   bool
 }
 
 // App is the root Bubbletea model.
@@ -40,12 +45,19 @@ type App struct {
 	state   viewState
 	styles  Styles
 	cleaner *cleaner.Cleaner
+	keys    KeyMap
 
 	// sub-models
-	spinner spinner.Model
-	list    listModel
-	detail  detailModel
-	confirm confirmModel
+	spinner  spinner.Model
+	progress progressModel
+	list     listModel
+	detail   detailModel
+	confirm  confirmModel
+	help     help.Model
+
+	// result view
+	resultTable    table.Model
+	resultViewport viewport.Model
 
 	// state data
 	packages      []pkg.Package
@@ -73,7 +85,9 @@ type App struct {
 func New(cfg Config) *App {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary))
+
+	styles := DefaultStyles()
 
 	// Build detector map for sudo lookup
 	dmap := make(map[string]detector.Detector, len(cfg.Detectors))
@@ -81,19 +95,26 @@ func New(cfg Config) *App {
 		dmap[d.Name()] = d
 	}
 
+	keys := DefaultKeyMap()
+	h := help.New()
+	h.Styles = help.DefaultDarkStyles()
+
 	return &App{
 		config:      cfg,
 		state:       stateLoading,
-		styles:      DefaultStyles(),
+		styles:      styles,
 		spinner:     s,
+		progress:    newProgressModel(styles),
 		cleaner:     cleaner.New(cfg.Detectors),
 		detectorMap: dmap,
+		keys:        keys,
+		help:        h,
 	}
 }
 
 // Run starts the Bubbletea program.
 func (a *App) Run(ctx context.Context) error {
-	p := tea.NewProgram(a, tea.WithAltScreen(), tea.WithContext(ctx))
+	p := tea.NewProgram(a, tea.WithContext(ctx))
 	_, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("running TUI: %w", err)
@@ -118,6 +139,7 @@ func (a *App) startLoading() tea.Cmd {
 	a.loadPackages = nil
 	a.loadWarnings = nil
 	a.doneCount = 0
+	a.progress = newProgressModel(a.styles)
 
 	detectors := a.config.Detectors
 	ch := a.detectorCh
@@ -130,7 +152,7 @@ func (a *App) startLoading() tea.Cmd {
 		close(ch)
 	}()
 
-	return tea.Batch(a.spinner.Tick, waitForDetector(a.detectorCh))
+	return tea.Batch(a.spinner.Tick, waitForDetector(a.detectorCh), progressTick())
 }
 
 // waitForDetector returns a Cmd that reads one result from the detector channel.
@@ -149,16 +171,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		a.help.SetWidth(msg.Width)
 
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
+	case tea.KeyPressMsg:
+		switch {
+		case key.Matches(msg, a.keys.ForceQuit):
 			return a, tea.Quit
-		case "q":
+		case key.Matches(msg, a.keys.Quit):
 			if a.state == stateList || a.state == stateError || a.state == stateResult {
 				return a, tea.Quit
 			}
-		case "enter", "r":
+		case key.Matches(msg, a.keys.Confirm) || key.Matches(msg, a.keys.Refresh):
 			if a.state == stateResult {
 				a.state = stateLoading
 				a.results = nil
@@ -166,7 +189,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.sudoDone = false
 				return a, a.startLoading()
 			}
-		case "esc":
+		case key.Matches(msg, a.keys.Back):
 			switch a.state {
 			case stateDetail:
 				a.state = stateList
@@ -184,6 +207,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			a.loadPackages = append(a.loadPackages, msg.Packages...)
 		}
+		// Update progress target
+		if len(a.detectorNames) > 0 {
+			a.progress.SetTarget(float64(a.doneCount) / float64(len(a.detectorNames)))
+		}
 		return a, waitForDetector(a.detectorCh)
 
 	case allDetectorsDoneMsg:
@@ -194,7 +221,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.packages = a.loadPackages
 		a.list = newListModel(a.packages, a.styles, a.loadWarnings)
-		a.list.list.SetSize(a.width, a.height-4)
+		a.list.list.SetSize(a.width, a.height-6)
 		a.state = stateList
 		return a, nil
 
@@ -217,6 +244,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.normalDone = true
 		if a.sudoDone || len(a.sudoQueue) == 0 {
 			a.state = stateResult
+			a.buildResultTable()
 		}
 		return a, nil
 
@@ -229,8 +257,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.sudoDone = true
 		if a.normalDone {
 			a.state = stateResult
+			a.buildResultTable()
 		}
 		return a, nil
+
+	case progressTickMsg:
+		if a.state == stateLoading {
+			var cmd tea.Cmd
+			a.progress, cmd = a.progress.Update(msg)
+			return a, cmd
+		}
 
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -241,9 +277,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Delegate to sub-models
 	switch a.state {
 	case stateList:
-		if key, ok := msg.(tea.KeyMsg); ok {
-			switch key.String() {
-			case "enter":
+		if keyMsg, ok := msg.(tea.KeyPressMsg); ok {
+			switch {
+			case key.Matches(keyMsg, a.keys.Confirm):
 				selected := a.list.SelectedPackages()
 				if len(selected) > 0 {
 					if a.config.NoConfirm {
@@ -255,10 +291,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.state = stateConfirm
 					return a, nil
 				}
-			case "d":
+			case key.Matches(keyMsg, a.keys.Detail):
 				if item, ok := a.list.list.SelectedItem().(pkg.Package); ok {
 					a.currentPkg = item
-					a.detail = newDetailModel(item, a.styles)
+					a.detail = newDetailModel(item, a.styles, a.width, a.height)
 					a.state = stateDetail
 					return a, nil
 				}
@@ -274,43 +310,49 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, cmd
 
 	case stateConfirm:
-		if key, ok := msg.(tea.KeyMsg); ok {
-			cmd := a.confirm.HandleKey(key.String())
-			if cmd != nil {
-				return a, cmd
-			}
-		}
 		var cmd tea.Cmd
 		a.confirm, cmd = a.confirm.Update(msg)
 		return a, cmd
+
+	case stateResult:
+		// Let viewport scroll in result view
+		if _, ok := msg.(tea.KeyPressMsg); ok {
+			var cmd tea.Cmd
+			a.resultViewport, cmd = a.resultViewport.Update(msg)
+			return a, cmd
+		}
 	}
 
 	return a, nil
 }
 
-func (a *App) View() string {
+func (a *App) View() tea.View {
+	var content string
 	switch a.state {
 	case stateLoading:
-		return a.splashView()
+		content = a.splashView()
 	case stateList:
-		return a.list.View()
+		content = a.list.View()
 	case stateDetail:
-		return a.detail.View()
+		content = a.detail.View()
 	case stateConfirm:
-		return a.confirm.View()
+		content = a.confirm.View()
 	case stateUninstalling:
 		if a.sudoCurrentPkg != nil {
-			return fmt.Sprintf("\n  Uninstalling %s (requires sudo)...\n\n  The terminal will prompt for your password.\n",
+			content = fmt.Sprintf("\n  Uninstalling %s (requires sudo)...\n\n  The terminal will prompt for your password.\n",
 				a.sudoCurrentPkg.Name)
+		} else {
+			content = fmt.Sprintf("\n  %s Uninstalling packages...\n", a.spinner.View())
 		}
-		return fmt.Sprintf("\n  %s Uninstalling packages...\n", a.spinner.View())
 	case stateResult:
-		return a.resultView()
+		content = a.resultView()
 	case stateError:
-		return a.styles.ErrorText.Render(fmt.Sprintf("\n  Error: %v\n\n  Press q to quit.", a.err))
-	default:
-		return ""
+		content = a.styles.ErrorText.Render(fmt.Sprintf("\n  Error: %v\n\n  Press q to quit.", a.err))
 	}
+
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
 }
 
 // --- Commands ---
@@ -352,6 +394,7 @@ func (a *App) startUninstall(packages []pkg.Package) tea.Cmd {
 	// If both are empty somehow, go directly to results
 	if len(cmds) == 0 {
 		a.state = stateResult
+		a.buildResultTable()
 		return nil
 	}
 
@@ -416,40 +459,92 @@ func (a *App) selectedNeedSudo(packages []pkg.Package) bool {
 
 // --- Views ---
 
+// buildResultTable constructs a table model from uninstall results.
+func (a *App) buildResultTable() {
+	columns := []table.Column{
+		{Title: "Status", Width: 6},
+		{Title: "Manager", Width: 10},
+		{Title: "Package", Width: 30},
+		{Title: "Details", Width: 40},
+	}
+
+	var rows []table.Row
+	for _, r := range a.results {
+		var status, detail string
+		switch {
+		case r.DryRunCmd != "":
+			status = "DRY"
+			detail = r.DryRunCmd
+		case r.Err != nil:
+			status = "✗"
+			detail = r.Err.Error()
+		default:
+			status = "✓"
+			if len(r.Leftovers) > 0 {
+				detail = "leftovers: " + strings.Join(r.Leftovers, ", ")
+			} else {
+				detail = "clean"
+			}
+		}
+		rows = append(rows, table.Row{status, string(r.Package.Manager), r.Package.Name, detail})
+	}
+
+	t := table.New(
+		table.WithColumns(columns),
+		table.WithRows(rows),
+		table.WithFocused(true),
+		table.WithHeight(min(len(rows)+1, a.height-10)),
+	)
+	t.SetStyles(a.styles.TableStyles)
+	a.resultTable = t
+}
+
 func (a *App) resultView() string {
 	var b strings.Builder
-	fmt.Fprintln(&b, a.styles.Title.Render("Uninstall Results"))
+
+	fmt.Fprintln(&b, a.styles.Title.Render(" 📋 Uninstall Results "))
 	fmt.Fprintln(&b)
 
+	// Summary counts
 	successCount, failedCount, dryRunCount := 0, 0, 0
 	for _, r := range a.results {
-		badge := a.styles.BadgeFor(string(r.Package.Manager))
+		switch {
+		case r.DryRunCmd != "":
+			dryRunCount++
+		case r.Err != nil:
+			failedCount++
+		default:
+			successCount++
+		}
+	}
 
+	// Render each result with icons
+	for _, r := range a.results {
+		badge := a.styles.BadgeFor(string(r.Package.Manager))
 		switch {
 		case r.DryRunCmd != "":
 			dryIcon := a.styles.DryRunBadge.Render("DRY")
 			fmt.Fprintf(&b, "  %s %s %s\n", dryIcon, badge, r.Package.Name)
 			fmt.Fprintf(&b, "    %s\n", a.styles.HelpBar.Render(r.DryRunCmd))
-			dryRunCount++
 
 		case r.Err != nil:
 			fmt.Fprintf(&b, "  %s %s %s\n",
 				a.styles.ErrorText.Render("✗"), badge, r.Package.Name)
 			fmt.Fprintf(&b, "    %s\n", a.styles.ErrorText.Render(r.Err.Error()))
-			failedCount++
 
 		default:
-			okStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78"))
+			okStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess))
 			fmt.Fprintf(&b, "  %s %s %s\n", okStyle.Render("✓"), badge, r.Package.Name)
 			if len(r.Leftovers) > 0 {
 				fmt.Fprintf(&b, "    %s\n",
 					a.styles.HelpBar.Render("Leftover files: "+strings.Join(r.Leftovers, ", ")))
 			}
-			successCount++
 		}
 	}
 
 	fmt.Fprintln(&b)
+
+	// Summary bar
 	var summary string
 	switch {
 	case dryRunCount > 0:
@@ -460,25 +555,30 @@ func (a *App) resultView() string {
 			summary += fmt.Sprintf(", %d failed", failedCount)
 		}
 	}
-	fmt.Fprintln(&b, a.styles.StatusBar.Render(summary))
-	fmt.Fprint(&b, a.styles.HelpBar.Render("\n  enter/r: back to list  ·  q: quit"))
+	summaryStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color(ColorPrimary)).
+		Padding(0, 1).
+		Bold(true)
+	fmt.Fprintln(&b, summaryStyle.Render(summary))
+
+	// Help
+	resultKeys := DefaultResultKeyMap()
+	fmt.Fprint(&b, "\n  "+a.help.View(resultKeys))
 
 	return b.String()
 }
 
-// sudoAllDoneMsg is sent when all sudo packages have been processed.
-type sudoAllDoneMsg struct{}
-
-// splashView renders the branded loading/splash screen.
+// splashView renders the branded loading/splash screen with progress bar.
 func (a *App) splashView() string {
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#7C3AED")).
+		Foreground(lipgloss.Color(ColorPrimary)).
 		Bold(true)
 	taglineStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#A0AEC0"))
-	checkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true)
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096"))
-	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#E9D8FD"))
+		Foreground(lipgloss.Color(ColorSubtle))
+	checkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent))
 
 	title := titleStyle.Render("✦  OmniClean  ✦")
 	tagline := taglineStyle.Render("Clean up your system, one package at a time")
@@ -486,7 +586,7 @@ func (a *App) splashView() string {
 	boxWidth := max(lipgloss.Width(title), lipgloss.Width(tagline)) + 8
 	box := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#7C3AED")).
+		BorderForeground(lipgloss.Color(ColorPrimary)).
 		Padding(1, 3).
 		Width(boxWidth).
 		Align(lipgloss.Center)
@@ -505,6 +605,9 @@ func (a *App) splashView() string {
 	}
 	progressLine := strings.Join(progressParts, "   ")
 
+	// Animated progress bar
+	progressBar := a.progress.View()
+
 	countLine := ""
 	if len(a.loadPackages) > 0 {
 		countLine = dimStyle.Render(fmt.Sprintf("%d packages found so far", len(a.loadPackages)))
@@ -512,6 +615,8 @@ func (a *App) splashView() string {
 
 	content := lipgloss.JoinVertical(lipgloss.Center,
 		box.Render(boxContent),
+		"",
+		progressBar,
 		"",
 		progressLine,
 		countLine,

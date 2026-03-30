@@ -6,9 +6,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/list"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/list"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -21,6 +23,8 @@ type listModel struct {
 	warnings      []string
 	originalItems []pkg.Package // preserved for sort reset
 	sortedBySize  bool
+	keys          KeyMap
+	help          help.Model
 }
 
 // packageDelegate renders each package row with manager badge and selection checkbox.
@@ -63,12 +67,12 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 
 	cursor := "  "
 	if isCursor {
-		cursor = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED")).Render("> ")
+		cursor = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render("▸ ")
 	}
 
 	checkbox := "[ ]"
 	if isChecked {
-		checkbox = lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true).Render("[✓]")
+		checkbox = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true).Render("[✓]")
 	}
 
 	// Name column — style first, then pad the remaining space with plain spaces.
@@ -85,7 +89,7 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	badge := d.styles.BadgeFor(string(p.Manager)) + badgePad
 
 	// Version column — pad then dim.
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#718096"))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
 	verPad := p.Version + strings.Repeat(" ", max(0, d.versionWidth-len(p.Version)))
 	version := dimStyle.Render(verPad)
 
@@ -110,10 +114,14 @@ func newListModel(packages []pkg.Package, styles Styles, warnings []string) list
 	}
 
 	l := list.New(items, delegate, 0, 0)
-	l.Title = "OmniClean"
+	l.Title = "✦ OmniClean"
 	l.SetShowStatusBar(true)
 	l.SetFilteringEnabled(true)
 	l.Styles.Title = styles.Title
+
+	keys := DefaultKeyMap()
+	h := help.New()
+	h.Styles = help.DefaultDarkStyles()
 
 	return listModel{
 		list:          l,
@@ -121,6 +129,8 @@ func newListModel(packages []pkg.Package, styles Styles, warnings []string) list
 		styles:        styles,
 		warnings:      warnings,
 		originalItems: packages,
+		keys:          keys,
+		help:          h,
 	}
 }
 
@@ -130,15 +140,35 @@ func (m listModel) Init() tea.Cmd {
 
 func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case " ":
+	case tea.KeyPressMsg:
+		switch {
+		case key.Matches(msg, m.keys.Select):
 			if item, ok := m.list.SelectedItem().(pkg.Package); ok {
-				key := selectionKey(item)
-				m.selected[key] = !m.selected[key]
+				k := selectionKey(item)
+				m.selected[k] = !m.selected[k]
 			}
 			return m, nil
-		case "s":
+		case key.Matches(msg, m.keys.SelectAll):
+			allSelected := true
+			for _, item := range m.list.Items() {
+				p, ok := item.(pkg.Package)
+				if !ok {
+					continue
+				}
+				if !m.selected[selectionKey(p)] {
+					allSelected = false
+					break
+				}
+			}
+			for _, item := range m.list.Items() {
+				p, ok := item.(pkg.Package)
+				if !ok {
+					continue
+				}
+				m.selected[selectionKey(p)] = !allSelected
+			}
+			return m, nil
+		case key.Matches(msg, m.keys.SortSize):
 			m.sortedBySize = !m.sortedBySize
 			if m.sortedBySize {
 				sorted := make([]pkg.Package, len(m.originalItems))
@@ -151,10 +181,14 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				m.list.SetItems(packagesToItems(m.originalItems))
 			}
 			return m, nil
+		case msg.String() == "?":
+			m.help.ShowAll = !m.help.ShowAll
+			return m, nil
 		}
 	case tea.WindowSizeMsg:
 		warningLines := len(m.warnings)
-		m.list.SetSize(msg.Width, msg.Height-4-warningLines)
+		m.list.SetSize(msg.Width, msg.Height-6-warningLines)
+		m.help.SetWidth(msg.Width)
 	}
 
 	var cmd tea.Cmd
@@ -175,18 +209,23 @@ func (m listModel) View() string {
 
 	// Show warning bar if any detectors failed
 	if len(m.warnings) > 0 {
-		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#F6AD55"))
+		warnStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorWarning))
 		parts = append(parts, warnStyle.Render("  ⚠ Some detectors failed: "+strings.Join(m.warnings, ", ")))
 	}
 
-	sortHint := "s: sort size"
+	// Selection counter
+	counterStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Bold(true)
+	sortIndicator := ""
 	if m.sortedBySize {
-		sortHint = lipgloss.NewStyle().Foreground(lipgloss.Color("#7C3AED")).Render("s: sort size ↓")
+		sortIndicator = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorPrimary)).Render(" ↓size")
 	}
-	status := m.styles.StatusBar.Render(
-		fmt.Sprintf("%d selected  ·  space: select  %s  d: details  enter: confirm  q: quit", selectedCount, sortHint),
-	)
-	parts = append(parts, status)
+	counter := counterStyle.Render(fmt.Sprintf("  %d selected", selectedCount)) + sortIndicator
+
+	// Help component
+	helpView := m.help.View(m.keys)
+
+	parts = append(parts, counter)
+	parts = append(parts, "  "+helpView)
 
 	return strings.Join(parts, "\n")
 }

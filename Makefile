@@ -2,7 +2,7 @@ BINARY_NAME := omniclean
 BUILD_DIR   := bin
 MAIN_PKG    := ./cmd/omniclean
 
-.PHONY: build run test lint fmt clean install-tools
+.PHONY: build run test lint fmt clean install-tools install
 
 VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 
@@ -31,6 +31,10 @@ lint:
 fmt:
 	gofmt -w .
 	goimports -w . 2>/dev/null || true
+
+## install: Build and install binary to /usr/local/bin
+install: build
+	sudo cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
 
 ## clean: Remove build artifacts
 clean:
