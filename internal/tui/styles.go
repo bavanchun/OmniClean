@@ -16,10 +16,10 @@ const (
 	ColorSubtle     = "#A0AEC0" // light gray
 	ColorAccent     = "#E9D8FD" // lavender
 	ColorBg         = "#1A202C" // dark bg
-	ColorBorder          = "#4A5568" // border gray
-	ColorProgressA       = "#7C3AED" // progress gradient start
-	ColorProgressB       = "#E9D8FD" // progress gradient end
-	ColorSelectedBg      = "#2D3748" // dark subtle background for selected row
+	ColorBorder     = "#4A5568" // border gray
+	ColorProgressA  = "#7C3AED" // progress gradient start
+	ColorProgressB  = "#E9D8FD" // progress gradient end
+	ColorSelectedBg = "#2D3748" // dark subtle background for selected row
 )
 
 // Fixed column widths for List and Confirm views

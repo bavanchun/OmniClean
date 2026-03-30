@@ -14,7 +14,7 @@ import (
 // settingsModel wraps a huh.Form for configuring active detectors.
 type settingsModel struct {
 	form      *huh.Form
-	selected  []string           // bound to huh MultiSelect
+	selected  []string            // bound to huh MultiSelect
 	detectors []detector.Detector // all available detectors
 	styles    Styles
 	width     int
@@ -66,8 +66,7 @@ func (m settingsModel) Init() tea.Cmd {
 }
 
 func (m settingsModel) Update(msg tea.Msg) (settingsModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width = msg.Width
 		m.height = msg.Height
 	}

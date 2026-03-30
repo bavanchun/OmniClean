@@ -43,8 +43,7 @@ func newDetailModel(p pkg.Package, styles Styles, width, height int) detailModel
 func (m detailModel) Init() tea.Cmd { return nil }
 
 func (m detailModel) Update(msg tea.Msg) (detailModel, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width = msg.Width
 		m.height = msg.Height
 		m.viewport.SetWidth(max(msg.Width-6, 20))

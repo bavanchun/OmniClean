@@ -78,9 +78,9 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	versionCol := lipgloss.NewStyle().Width(ColWidthVersion).Render(dimStyle.Render(versionText))
 
 	// Name (Flexible Width)
-	const listChromeWidth = 4 // Margins/padding added by bubbles/list
+	const listChromeWidth = 4                                                         // Margins/padding added by bubbles/list
 	fixedWidths := 6 /* state */ + ColWidthBadge + ColWidthVersion + ColWidthSize + 4 /* spaces */
-	
+
 	nameWidth := m.Width() - fixedWidths - listChromeWidth
 	if nameWidth < 10 {
 		nameWidth = 10
@@ -111,7 +111,7 @@ func (d packageDelegate) Render(w io.Writer, m list.Model, index int, item list.
 	// In Bubbles/List, applying background to full width requires adding a padding fill
 	if isCursor {
 		fill := max(0, m.Width()-listChromeWidth-lipgloss.Width(row))
-		row = row + strings.Repeat(" ", fill)
+		row += strings.Repeat(" ", fill)
 		row = d.styles.SelectedRow.Render(row)
 	}
 
@@ -159,6 +159,9 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 			if item, ok := m.list.SelectedItem().(pkg.Package); ok {
 				k := selectionKey(item)
 				m.selected[k] = !m.selected[k]
+				// Bubbling the command invalidates the list renderer cache for this item
+				cmd := m.list.SetItem(m.list.Index(), item)
+				return m, cmd
 			}
 			return m, nil
 		case key.Matches(msg, m.keys.SelectAll):
@@ -180,7 +183,9 @@ func (m listModel) Update(msg tea.Msg) (listModel, tea.Cmd) {
 				}
 				m.selected[selectionKey(p)] = !allSelected
 			}
-			return m, nil
+			// Invalidate all items in cache
+			cmd := m.list.SetItems(m.list.Items())
+			return m, cmd
 		case key.Matches(msg, m.keys.SortSize):
 			m.sortedBySize = !m.sortedBySize
 			if m.sortedBySize {
@@ -232,24 +237,24 @@ func (m listModel) View() string {
 		Background(lipgloss.Color(ColorPrimary)).
 		Padding(0, 1).
 		Bold(true)
-		
+
 	sortIndicator := ""
 	if m.sortedBySize {
 		sortIndicator = " ↓size"
 	}
-	
+
 	statusText := fmt.Sprintf("%d selected%s", selectedCount, sortIndicator)
 	leftStatus := statusStyle.Render(statusText)
-	
+
 	// Create a full-width status line using the selected row background color
 	listWidth := m.list.Width()
 	if listWidth == 0 {
 		listWidth = 80 // fallback
 	}
-	
-	fillWidth := max(0, listWidth - lipgloss.Width(leftStatus))
+
+	fillWidth := max(0, listWidth-lipgloss.Width(leftStatus))
 	fill := lipgloss.NewStyle().Background(lipgloss.Color(ColorSelectedBg)).Render(strings.Repeat(" ", fillWidth))
-	
+
 	statusBar := lipgloss.JoinHorizontal(lipgloss.Left, leftStatus, fill)
 
 	// Help component
