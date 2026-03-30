@@ -32,7 +32,7 @@ func DefaultKeyMap() KeyMap {
 			key.WithHelp("ctrl+c", "force quit"),
 		),
 		Select: key.NewBinding(
-			key.WithKeys(" "),
+			key.WithKeys(" ", "space"),
 			key.WithHelp("space", "select"),
 		),
 		SelectAll: key.NewBinding(
