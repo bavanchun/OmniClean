@@ -35,3 +35,12 @@ type allDetectorsDoneMsg struct{}
 
 // sudoAllDoneMsg is sent when all sudo packages have been processed.
 type sudoAllDoneMsg struct{}
+
+// settingsAppliedMsg is sent when the user submits the settings form.
+// SelectedManagers contains the names of the managers the user wants active.
+type settingsAppliedMsg struct {
+	SelectedManagers []string
+}
+
+// settingsCanceledMsg is sent when the user cancels the settings form.
+type settingsCanceledMsg struct{}

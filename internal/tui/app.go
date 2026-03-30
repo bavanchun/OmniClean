@@ -28,6 +28,7 @@ const (
 	stateConfirm
 	stateUninstalling
 	stateResult
+	stateSettings
 	stateError
 )
 
@@ -53,6 +54,7 @@ type App struct {
 	list     listModel
 	detail   detailModel
 	confirm  confirmModel
+	settings settingsModel
 	help     help.Model
 
 	// result view
@@ -79,6 +81,9 @@ type App struct {
 	sudoCurrentPkg *pkg.Package  // package currently being sudo-uninstalled
 	normalDone     bool          // normal (non-sudo) batch finished
 	sudoDone       bool          // all sudo packages finished
+
+	// all available detectors (for settings — superset of config.Detectors)
+	allDetectors []detector.Detector
 }
 
 // New creates the App model ready to be run.
@@ -100,15 +105,16 @@ func New(cfg Config) *App {
 	h.Styles = help.DefaultDarkStyles()
 
 	return &App{
-		config:      cfg,
-		state:       stateLoading,
-		styles:      styles,
-		spinner:     s,
-		progress:    newProgressModel(styles),
-		cleaner:     cleaner.New(cfg.Detectors),
-		detectorMap: dmap,
-		keys:        keys,
-		help:        h,
+		config:       cfg,
+		state:        stateLoading,
+		styles:       styles,
+		spinner:      s,
+		progress:     newProgressModel(styles),
+		cleaner:      cleaner.New(cfg.Detectors),
+		detectorMap:  dmap,
+		keys:         keys,
+		help:         h,
+		allDetectors: cfg.Detectors, // initially all available
 	}
 }
 
@@ -197,6 +203,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case stateConfirm:
 				a.state = stateList
 				return a, nil
+			case stateSettings:
+				a.state = stateList
+				return a, nil
 			}
 		}
 
@@ -261,6 +270,37 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
+	case settingsAppliedMsg:
+		// Rebuild config with selected detectors
+		newDetectors := make([]detector.Detector, 0)
+		nameSet := make(map[string]bool, len(msg.SelectedManagers))
+		for _, n := range msg.SelectedManagers {
+			nameSet[n] = true
+		}
+		for _, d := range a.allDetectors {
+			if nameSet[d.Name()] {
+				newDetectors = append(newDetectors, d)
+			}
+		}
+		if len(newDetectors) == 0 {
+			// Don't allow empty — keep all
+			newDetectors = a.allDetectors
+		}
+		a.config.Detectors = newDetectors
+		// Rebuild detector map and cleaner
+		a.detectorMap = make(map[string]detector.Detector, len(newDetectors))
+		for _, d := range newDetectors {
+			a.detectorMap[d.Name()] = d
+		}
+		a.cleaner = cleaner.New(newDetectors)
+		// Reload
+		a.state = stateLoading
+		return a, a.startLoading()
+
+	case settingsCanceledMsg:
+		a.state = stateList
+		return a, nil
+
 	case progressTickMsg:
 		if a.state == stateLoading {
 			var cmd tea.Cmd
@@ -298,6 +338,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.state = stateDetail
 					return a, nil
 				}
+			case key.Matches(keyMsg, a.keys.Settings):
+				activeNames := make(map[string]bool, len(a.config.Detectors))
+				for _, d := range a.config.Detectors {
+					activeNames[d.Name()] = true
+				}
+				a.settings = newSettingsModel(a.allDetectors, activeNames, a.styles, a.width, a.height)
+				a.state = stateSettings
+				return a, a.settings.Init()
 			}
 		}
 		var cmd tea.Cmd
@@ -321,6 +369,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.resultViewport, cmd = a.resultViewport.Update(msg)
 			return a, cmd
 		}
+
+	case stateSettings:
+		var cmd tea.Cmd
+		a.settings, cmd = a.settings.Update(msg)
+		return a, cmd
 	}
 
 	return a, nil
@@ -346,6 +399,8 @@ func (a *App) View() tea.View {
 		}
 	case stateResult:
 		content = a.resultView()
+	case stateSettings:
+		content = a.settings.View()
 	case stateError:
 		content = a.styles.ErrorText.Render(fmt.Sprintf("\n  Error: %v\n\n  Press q to quit.", a.err))
 	}

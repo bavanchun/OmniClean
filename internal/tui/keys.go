@@ -17,6 +17,7 @@ type KeyMap struct {
 	SortSize  key.Binding
 	Back      key.Binding
 	Refresh   key.Binding
+	Settings  key.Binding
 }
 
 // DefaultKeyMap returns the default key bindings.
@@ -58,12 +59,16 @@ func DefaultKeyMap() KeyMap {
 			key.WithKeys("r"),
 			key.WithHelp("r", "refresh"),
 		),
+		Settings: key.NewBinding(
+			key.WithKeys(","),
+			key.WithHelp(",", "settings"),
+		),
 	}
 }
 
 // ShortHelp returns the short help key bindings for the list view.
 func (k KeyMap) ShortHelp() []key.Binding {
-	return []key.Binding{k.Select, k.SortSize, k.Detail, k.Confirm, k.Quit}
+	return []key.Binding{k.Select, k.SortSize, k.Detail, k.Confirm, k.Settings, k.Quit}
 }
 
 // FullHelp returns the full help key bindings organized in columns.
@@ -71,7 +76,7 @@ func (k KeyMap) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{k.Select, k.SelectAll, k.SortSize},
 		{k.Detail, k.Confirm, k.Back},
-		{k.Refresh, k.Quit, k.ForceQuit},
+		{k.Settings, k.Refresh, k.Quit, k.ForceQuit},
 	}
 }
 
