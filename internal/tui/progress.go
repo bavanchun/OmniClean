@@ -48,8 +48,7 @@ func progressTick() tea.Cmd {
 }
 
 func (m progressModel) Update(msg tea.Msg) (progressModel, tea.Cmd) {
-	switch msg.(type) {
-	case progressTickMsg:
+	if _, ok := msg.(progressTickMsg); ok {
 		m.percent, m.velocity = m.spring.Update(m.percent, m.velocity, m.target)
 		// Clamp
 		if m.percent > 1.0 {

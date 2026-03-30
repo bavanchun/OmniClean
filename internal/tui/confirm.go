@@ -19,8 +19,6 @@ type confirmModel struct {
 	hasSudo  bool
 	styles   Styles
 	width    int
-	chosen   bool // true once user has made a choice
-	accepted bool // true if user chose yes
 }
 
 func newConfirmModel(packages []pkg.Package, dryRun, hasSudo bool, styles Styles, width int) confirmModel {
@@ -87,7 +85,7 @@ func (m confirmModel) View() string {
 		// Badge
 		badgeCol := lipgloss.NewStyle().Width(ColWidthBadge).Render(m.styles.BadgeFor(string(p.Manager)))
 
-		// Name (Flexible) 
+		// Name (Flexible)
 		fixedWidths := lipgloss.Width(bulletCol) + ColWidthBadge + ColWidthVersion + ColWidthSize + 4 // spacing
 		nameWidth := m.width - 4 /* box padding */ - fixedWidths
 		if nameWidth < 10 {
