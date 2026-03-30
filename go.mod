@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/harmonica v0.2.0
 	github.com/charmbracelet/log v1.0.0
 	github.com/creativeprojects/go-selfupdate v1.5.2
+	github.com/muesli/reflow v0.3.0
 	github.com/spf13/cobra v1.10.2
 )
 
@@ -48,7 +49,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.21 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.27 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect
-	github.com/muesli/reflow v0.3.0 // indirect
 	github.com/muesli/termenv v0.16.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect

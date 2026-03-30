@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/muesli/reflow/truncate"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -80,17 +81,50 @@ func (m confirmModel) View() string {
 
 	// Package list with badges
 	for _, p := range m.packages {
-		badge := m.styles.BadgeFor(string(p.Manager))
+		// Bullet
+		bulletCol := "  • "
+
+		// Badge
+		badgeCol := lipgloss.NewStyle().Width(ColWidthBadge).Render(m.styles.BadgeFor(string(p.Manager)))
+
+		// Name (Flexible) 
+		fixedWidths := lipgloss.Width(bulletCol) + ColWidthBadge + ColWidthVersion + ColWidthSize + 4 // spacing
+		nameWidth := m.width - 4 /* box padding */ - fixedWidths
+		if nameWidth < 10 {
+			nameWidth = 10
+		}
+		nameText := p.Name
+		if len(nameText) > nameWidth {
+			nameText = truncate.StringWithTail(nameText, uint(nameWidth), "…")
+		}
+		nameCol := lipgloss.NewStyle().Width(nameWidth).Bold(true).Render(nameText)
+
+		// Version
+		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
+		versionText := p.Version
+		if len(versionText) > ColWidthVersion {
+			versionText = truncate.StringWithTail(versionText, uint(ColWidthVersion), "…")
+		}
+		versionCol := lipgloss.NewStyle().Width(ColWidthVersion).Render(dimStyle.Render(versionText))
+
+		// Size
 		sizeStr := ""
 		if p.Size > 0 {
-			sizeStr = "  " + lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim)).Render(formatBytes(p.Size))
+			sizeStr = formatBytes(p.Size)
 		}
-		fmt.Fprintf(&b, "  • %s %s %s%s\n",
-			badge,
-			lipgloss.NewStyle().Bold(true).Render(p.Name),
-			lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim)).Render(p.Version),
-			sizeStr,
+		sizeCol := lipgloss.NewStyle().Width(ColWidthSize).Align(lipgloss.Right).Render(dimStyle.Render(sizeStr))
+
+		// Render full string safely joined without manual string interpolation artifacts
+		row := lipgloss.JoinHorizontal(lipgloss.Left,
+			bulletCol,
+			badgeCol,
+			nameCol,
+			"  ",
+			versionCol,
+			"  ",
+			sizeCol,
 		)
+		fmt.Fprintln(&b, row)
 	}
 
 	fmt.Fprintln(&b)
