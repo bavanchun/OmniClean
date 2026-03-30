@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/spf13/cobra"
 
 	"github.com/bavanchun/OmniClean/internal/detector"
+	logger "github.com/bavanchun/OmniClean/internal/logger"
 	"github.com/bavanchun/OmniClean/internal/tui"
 )
 
@@ -20,6 +22,7 @@ func main() {
 		dryRun    bool
 		managers  []string
 		noConfirm bool
+		verbose   bool
 	)
 
 	root := &cobra.Command{
@@ -29,6 +32,21 @@ func main() {
 		Long: `OmniClean aggregates packages from multiple package managers
 into a single interactive TUI. Search, select, and cleanly uninstall.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Configure logging
+			if verbose {
+				logger.SetVerbose()
+			}
+
+			// Set up file logging for TUI mode (TUI owns stdout/stderr)
+			cleanup := logger.SetupFileLogging()
+			defer cleanup()
+
+			logger.L.Info("starting omniclean",
+				"version", version,
+				"dry_run", dryRun,
+				"verbose", verbose,
+			)
+
 			detectors := detector.AvailableDetectors()
 			if len(managers) > 0 {
 				detectors = filterDetectors(detectors, managers)
@@ -38,10 +56,16 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 				return nil
 			}
 
+			logger.L.Info("detected package managers",
+				"count", len(detectors),
+				"managers", detectorNames(detectors),
+			)
+
 			app := tui.New(tui.Config{
 				Detectors: detectors,
 				DryRun:    dryRun,
 				NoConfirm: noConfirm,
+				Verbose:   verbose,
 			})
 			return app.Run(context.Background())
 		},
@@ -50,6 +74,7 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 	root.Flags().BoolVarP(&dryRun, "dry-run", "n", false, "Simulate uninstallation without making changes")
 	root.Flags().StringSliceVarP(&managers, "manager", "m", nil, "Filter to specific manager(s) (e.g. apt,pip)")
 	root.Flags().BoolVar(&noConfirm, "no-confirm", false, "Skip confirmation prompt before uninstalling")
+	root.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose debug logging")
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
@@ -69,3 +94,14 @@ func filterDetectors(all []detector.Detector, names []string) []detector.Detecto
 	}
 	return filtered
 }
+
+func detectorNames(detectors []detector.Detector) []string {
+	names := make([]string, len(detectors))
+	for i, d := range detectors {
+		names[i] = d.Name()
+	}
+	return names
+}
+
+// Ensure log package is used (it's imported for its side effects in the logger package).
+var _ = log.DebugLevel

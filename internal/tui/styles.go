@@ -1,7 +1,25 @@
 // Package tui implements the Bubbletea TUI for OmniClean.
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"charm.land/bubbles/v2/table"
+	"charm.land/lipgloss/v2"
+)
+
+// Color palette constants for OmniClean.
+const (
+	ColorPrimary    = "#7C3AED" // violet
+	ColorSuccess    = "#48BB78" // green
+	ColorWarning    = "#F6AD55" // orange
+	ColorError      = "#FC8181" // red
+	ColorDim        = "#718096" // gray
+	ColorSubtle     = "#A0AEC0" // light gray
+	ColorAccent     = "#E9D8FD" // lavender
+	ColorBg         = "#1A202C" // dark bg
+	ColorBorder     = "#4A5568" // border gray
+	ColorProgressA  = "#7C3AED" // progress gradient start
+	ColorProgressB  = "#E9D8FD" // progress gradient end
+)
 
 // Styles holds all Lipgloss styles used in the application.
 type Styles struct {
@@ -13,6 +31,12 @@ type Styles struct {
 	DryRunBadge  lipgloss.Style
 	ErrorText    lipgloss.Style
 	Border       lipgloss.Style
+	// Progress bar styles
+	ProgressBar lipgloss.Style
+	// Table styles
+	TableStyles table.Styles
+	// Viewport border
+	ViewportBorder lipgloss.Style
 }
 
 // DefaultStyles returns the application's default style set.
@@ -21,40 +45,50 @@ func DefaultStyles() Styles {
 		Title: lipgloss.NewStyle().
 			Bold(true).
 			Foreground(lipgloss.Color("#FFFFFF")).
-			Background(lipgloss.Color("#7C3AED")).
+			Background(lipgloss.Color(ColorPrimary)).
 			Padding(0, 1),
 
 		StatusBar: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#A0AEC0")).
+			Foreground(lipgloss.Color(ColorSubtle)).
 			Padding(0, 1),
 
 		HelpBar: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#718096")),
+			Foreground(lipgloss.Color(ColorDim)),
 
 		Selected: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#7C3AED")).
+			Foreground(lipgloss.Color(ColorPrimary)).
 			Bold(true),
 
 		DryRunBadge: lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#000000")).
-			Background(lipgloss.Color("#F6AD55")).
+			Background(lipgloss.Color(ColorWarning)).
 			Padding(0, 1).
 			Bold(true),
 
 		ErrorText: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FC8181")),
+			Foreground(lipgloss.Color(ColorError)),
 
 		Border: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("#4A5568")),
+			BorderForeground(lipgloss.Color(ColorBorder)),
+
+		ProgressBar: lipgloss.NewStyle().
+			Padding(1, 2),
+
+		ViewportBorder: lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(ColorPrimary)).
+			Padding(0, 1),
+
+		TableStyles: defaultTableStyles(),
 
 		ManagerBadge: map[string]lipgloss.Style{
 			// Linux
-			"apt":     lipgloss.NewStyle().Foreground(lipgloss.Color("#48BB78")).Bold(true),
-			"snap":    lipgloss.NewStyle().Foreground(lipgloss.Color("#FC8181")).Bold(true),
+			"apt":     lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true),
+			"snap":    lipgloss.NewStyle().Foreground(lipgloss.Color(ColorError)).Bold(true),
 			"flatpak": lipgloss.NewStyle().Foreground(lipgloss.Color("#63B3ED")).Bold(true),
 			// macOS + Linux
-			"brew": lipgloss.NewStyle().Foreground(lipgloss.Color("#F6AD55")).Bold(true),
+			"brew": lipgloss.NewStyle().Foreground(lipgloss.Color(ColorWarning)).Bold(true),
 			// Cross-platform
 			"pip":   lipgloss.NewStyle().Foreground(lipgloss.Color("#68D391")).Bold(true),
 			"npm":   lipgloss.NewStyle().Foreground(lipgloss.Color("#F687B3")).Bold(true),
@@ -74,4 +108,22 @@ func (s Styles) BadgeFor(manager string) string {
 		return style.Render("[" + manager + "]")
 	}
 	return "[" + manager + "]"
+}
+
+// defaultTableStyles returns styled table configuration for result views.
+func defaultTableStyles() table.Styles {
+	s := table.DefaultStyles()
+	s.Header = s.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color(ColorBorder)).
+		BorderBottom(true).
+		Bold(true).
+		Foreground(lipgloss.Color(ColorPrimary))
+
+	s.Selected = s.Selected.
+		Foreground(lipgloss.Color("#FFFFFF")).
+		Background(lipgloss.Color(ColorPrimary)).
+		Bold(true)
+
+	return s
 }
