@@ -16,6 +16,8 @@ import (
 	"github.com/bavanchun/OmniClean/internal/cleaner"
 	"github.com/bavanchun/OmniClean/internal/detector"
 	"github.com/bavanchun/OmniClean/internal/pkg"
+	"github.com/bavanchun/OmniClean/internal/tui/components"
+	"github.com/bavanchun/OmniClean/internal/tui/theme"
 )
 
 // viewState tracks which screen is active.
@@ -45,6 +47,7 @@ type App struct {
 	config  Config
 	state   viewState
 	styles  Styles
+	theme   theme.Styles
 	cleaner *cleaner.Cleaner
 	keys    KeyMap
 
@@ -108,6 +111,7 @@ func New(cfg Config) *App {
 		config:       cfg,
 		state:        stateLoading,
 		styles:       styles,
+		theme:        theme.New(),
 		spinner:      s,
 		progress:     newProgressModel(styles),
 		cleaner:      cleaner.New(cfg.Detectors),
@@ -624,57 +628,70 @@ func (a *App) resultView() string {
 	return b.String()
 }
 
-// splashView renders the branded loading/splash screen with progress bar.
+// splashView renders the branded loading screen as two stacked panels:
+// a brand card on top and a detection progress card below. Layout
+// adapts to terminal width but keeps a comfortable max so the splash
+// does not stretch awkwardly on wide terminals.
 func (a *App) splashView() string {
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorPrimary)).
-		Bold(true)
-	taglineStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(ColorSubtle))
-	checkStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess)).Bold(true)
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorDim))
-	activeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorAccent))
+	const maxWidth = 64
+	width := a.width - 4
+	if width > maxWidth {
+		width = maxWidth
+	}
+	if width < 32 {
+		width = 32
+	}
 
-	title := titleStyle.Render("✦  OmniClean  ✦")
-	tagline := taglineStyle.Render("Clean up your system, one package at a time")
+	brandTitle := a.theme.Subtitle.Render("✦  OmniClean  ✦")
+	tagline := a.theme.Subtle.Render("Clean up your system, one package at a time")
+	brandBody := lipgloss.JoinVertical(lipgloss.Center,
+		brandTitle, "", tagline,
+	)
+	brandCard := components.Panel(a.theme, "", lipgloss.NewStyle().
+		Width(width-4).
+		Align(lipgloss.Center).
+		Render(brandBody),
+		components.PanelOpts{Width: width, Accent: true},
+	)
 
-	boxWidth := max(lipgloss.Width(title), lipgloss.Width(tagline)) + 8
-	box := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(ColorPrimary)).
-		Padding(1, 3).
-		Width(boxWidth).
-		Align(lipgloss.Center)
-
-	boxContent := lipgloss.JoinVertical(lipgloss.Center, title, "", tagline)
-
-	// Per-detector progress
-	var progressParts []string
+	// Detection list
+	var rows []string
 	for i, name := range a.detectorNames {
 		switch {
 		case i < a.doneCount:
-			progressParts = append(progressParts, checkStyle.Render("✓")+" "+dimStyle.Render(name))
+			rows = append(rows, "  "+a.theme.Success.Render("✓")+"  "+a.theme.Dim.Render(name))
 		case i == a.doneCount:
-			progressParts = append(progressParts, a.spinner.View()+" "+activeStyle.Render(name)+"…")
+			rows = append(rows, "  "+a.spinner.View()+"  "+a.theme.Subtitle.Render(name)+a.theme.Dim.Render(" …"))
+		default:
+			rows = append(rows, "  "+a.theme.Dim.Render("○  "+name))
 		}
 	}
-	progressLine := strings.Join(progressParts, "   ")
-
-	// Animated progress bar
+	detectionList := strings.Join(rows, "\n")
 	progressBar := a.progress.View()
-
-	countLine := ""
-	if len(a.loadPackages) > 0 {
-		countLine = dimStyle.Render(fmt.Sprintf("%d packages found so far", len(a.loadPackages)))
+	countLine := a.theme.Dim.Render(fmt.Sprintf("%d packages found so far", len(a.loadPackages)))
+	if len(a.loadPackages) == 0 {
+		countLine = a.theme.Dim.Render("scanning…")
 	}
-
-	content := lipgloss.JoinVertical(lipgloss.Center,
-		box.Render(boxContent),
+	detectionBody := lipgloss.JoinVertical(lipgloss.Left,
+		detectionList,
 		"",
 		progressBar,
-		"",
-		progressLine,
 		countLine,
+	)
+	detectionCard := components.Panel(a.theme, " Detecting package managers ", detectionBody,
+		components.PanelOpts{Width: width, Accent: false},
+	)
+
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "ctrl+c", Action: "quit"},
+	})
+
+	content := lipgloss.JoinVertical(lipgloss.Center,
+		brandCard,
+		"",
+		detectionCard,
+		"",
+		footer,
 	)
 
 	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, content)
