@@ -1,7 +1,7 @@
 ---
 phase: 1
 title: "Refactor base (no visual change)"
-status: pending
+status: completed
 priority: P2
 effort: "30m"
 dependencies: []

@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "2-column layout + cards + ASCII banner"
-status: pending
+status: completed
 priority: P1
 effort: "90m"
 dependencies: [1]

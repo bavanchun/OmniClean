@@ -1,7 +1,7 @@
 ---
 phase: 3
 title: "Polish: bubbles/help + number shortcuts + adaptive color"
-status: pending
+status: completed
 priority: P2
 effort: "45m"
 dependencies: [2]

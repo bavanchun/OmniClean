@@ -1,7 +1,7 @@
 ---
 phase: 5
 title: "Tests + README screenshot update"
-status: pending
+status: completed
 priority: P2
 effort: "30m"
 dependencies: [4]

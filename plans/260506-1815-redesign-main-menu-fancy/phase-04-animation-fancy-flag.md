@@ -1,7 +1,7 @@
 ---
 phase: 4
 title: "Animation + --fancy flag"
-status: pending
+status: completed
 priority: P3
 effort: "60m"
 dependencies: [3]

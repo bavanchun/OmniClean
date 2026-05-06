@@ -1,8 +1,9 @@
 ---
 title: "Redesign main menu — Path B (full xin xò + animation)"
-status: in-progress
+status: completed
 priority: P2
 created: 2026-05-06
+completed: 2026-05-06
 scope: project
 owner: bavanchun
 sourceReport: reports/260506-1809-redesign-main-menu.md
@@ -36,11 +37,11 @@ Source analysis: `reports/260506-1809-redesign-main-menu.md`.
 
 | # | Phase | Status | Effort | Commits expected |
 |---|-------|--------|--------|------------------|
-| 1 | Refactor base (no visual change) | pending | 30m | 1 |
-| 2 | 2-column layout + cards + ASCII banner | pending | 90m | 2-3 |
-| 3 | Polish: bubbles/help + adaptive color + number shortcuts | pending | 45m | 1-2 |
-| 4 | Animation + `--fancy` flag | pending | 60m | 2 |
-| 5 | Tests + README screenshot update | pending | 30m | 1 |
+| 1 | Refactor base (no visual change) | completed | 30m | 2 |
+| 2 | 2-column layout + cards + ASCII banner | completed | 90m | 4 |
+| 3 | Polish: bubbles/help + adaptive color + number shortcuts | completed | 45m | 3 |
+| 4 | Animation + `--fancy` flag | completed | 60m | 2 |
+| 5 | Tests + README screenshot update | completed | 30m | 2 |
 
 Total: ~4h, 7-9 commits.
 
