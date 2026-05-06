@@ -2,8 +2,34 @@ package menu
 
 import (
 	"charm.land/lipgloss/v2"
+	"charm.land/lipgloss/v2/compat"
 
 	"github.com/bavanchun/OmniClean/internal/tui/theme"
+)
+
+// Adaptive text colors so the menu reads well on both light and dark
+// terminals. Borders stay solid so the gradient effect stays predictable.
+var (
+	textStrong = compat.AdaptiveColor{
+		Light: lipgloss.Color("#1A202C"),
+		Dark:  lipgloss.Color(theme.TextStrong),
+	}
+	textBody = compat.AdaptiveColor{
+		Light: lipgloss.Color("#2D3748"),
+		Dark:  lipgloss.Color(theme.TextBody),
+	}
+	textSubtle = compat.AdaptiveColor{
+		Light: lipgloss.Color("#4A5568"),
+		Dark:  lipgloss.Color(theme.TextSubtle),
+	}
+	textDim = compat.AdaptiveColor{
+		Light: lipgloss.Color("#718096"),
+		Dark:  lipgloss.Color(theme.TextDim),
+	}
+	textMuted = compat.AdaptiveColor{
+		Light: lipgloss.Color("#A0AEC0"),
+		Dark:  lipgloss.Color(theme.TextMuted),
+	}
 )
 
 var (
@@ -12,7 +38,7 @@ var (
 			Bold(true)
 
 	subtitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.TextSubtle))
+			Foreground(textSubtle)
 
 	boxStyle = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -24,20 +50,20 @@ var (
 			Bold(true)
 
 	activeTitleStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.TextStrong)).
+				Foreground(textStrong).
 				Bold(true)
 
 	activeDescStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.TextSubtle))
+			Foreground(textSubtle)
 
 	inactiveTitleStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.TextSubtle))
+				Foreground(textBody)
 
 	inactiveDescStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.TextMuted))
+				Foreground(textMuted)
 
 	helpStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.TextDim))
+			Foreground(textDim)
 
 	bannerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.Primary)).
@@ -49,10 +75,10 @@ var (
 			Padding(1, 2)
 
 	brandTaglineStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color(theme.TextSubtle))
+				Foreground(textSubtle)
 
 	brandMetaStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.TextDim))
+			Foreground(textDim)
 
 	cardBase = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
@@ -80,5 +106,5 @@ var (
 				Bold(true)
 
 	indexIdleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.TextDim))
+			Foreground(textDim)
 )
