@@ -82,9 +82,34 @@ omniclean purge --stack node,rust  # restrict by ecosystem
 omniclean analyze ~/Code           # TUI explorer
 omniclean analyze --json | jq      # machine-readable
 omniclean analyze --large-min=1G   # raise the large-files threshold
+
+# Animated main menu (spinner star + rotating gradient borders)
+omniclean --fancy
 ```
 
+## Root Flags
+
+| Flag           | Description                                                    |
+|----------------|----------------------------------------------------------------|
+| `--dry-run`    | Simulate uninstallation without making changes                 |
+| `--manager`    | Filter to specific manager(s) (e.g. `apt,pip`)                 |
+| `--no-confirm` | Skip confirmation prompt before uninstalling                   |
+| `--verbose`    | Enable verbose debug logging                                   |
+| `--fancy`      | Animated UI effects in the main menu (slight idle CPU cost)    |
+
 ## Key Bindings
+
+### Main Menu
+
+| Key            | Action                        |
+|----------------|-------------------------------|
+| `↑/↓` `j/k`    | Navigate cards                |
+| `1` / `2` / `3`| Jump to card and select       |
+| `enter`        | Select highlighted card       |
+| `?`            | Toggle full help              |
+| `q` / `esc`    | Quit                          |
+
+### Package List
 
 | Key            | Action                        |
 |----------------|-------------------------------|
