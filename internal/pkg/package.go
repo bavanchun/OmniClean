@@ -80,10 +80,21 @@ func ParseHumanSize(s string) int64 {
 	return 0
 }
 
+// LeftoverEntry describes a single residual file or directory that the
+// leftover scanner found after an uninstall, along with its size in
+// bytes and whether the user's whitelist protects it from removal.
+type LeftoverEntry struct {
+	Path        string
+	Size        int64
+	Whitelisted bool
+}
+
 // UninstallResult holds the outcome of a single package removal operation.
 type UninstallResult struct {
-	Package   Package
-	Err       error
-	DryRunCmd string   // set when dry-run mode; shows the command that would run
-	Leftovers []string // leftover config/cache paths found after uninstall
+	Package         Package
+	Err             error
+	DryRunCmd       string          // set when dry-run mode; shows the command that would run
+	Leftovers       []string        // path-only leftover list (kept for backward compatibility)
+	LeftoverEntries []LeftoverEntry // detailed leftover list with sizes
+	LeftoverTotal   int64           // sum of LeftoverEntries[].Size
 }

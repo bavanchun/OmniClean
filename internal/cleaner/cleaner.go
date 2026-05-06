@@ -9,21 +9,30 @@ import (
 	"runtime"
 
 	"github.com/bavanchun/OmniClean/internal/detector"
+	"github.com/bavanchun/OmniClean/internal/leftover"
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
 
-// Cleaner holds a map of detectors by manager name for fast lookup.
+// Cleaner holds a map of detectors by manager name for fast lookup,
+// along with the active whitelist used by leftover scanners.
 type Cleaner struct {
 	detectors map[string]detector.Detector
+	whitelist *leftover.Whitelist
 }
 
-// New creates a Cleaner from a slice of detectors.
+// New creates a Cleaner from a slice of detectors. The whitelist is
+// loaded from the conventional config path; load errors fall back to an
+// empty whitelist so a malformed file never blocks uninstall.
 func New(detectors []detector.Detector) *Cleaner {
 	m := make(map[string]detector.Detector, len(detectors))
 	for _, d := range detectors {
 		m[d.Name()] = d
 	}
-	return &Cleaner{detectors: m}
+	wl, err := leftover.LoadWhitelist(leftover.DefaultWhitelistPath())
+	if err != nil {
+		wl = &leftover.Whitelist{}
+	}
+	return &Cleaner{detectors: m, whitelist: wl}
 }
 
 // Uninstall removes each package using its associated detector.
@@ -48,7 +57,7 @@ func (c *Cleaner) Uninstall(ctx context.Context, packages []pkg.Package, dryRun 
 		} else {
 			result.Err = d.Uninstall(ctx, p)
 			if result.Err == nil {
-				result.Leftovers = FindLeftovers(p.Name)
+				attachLeftovers(&result, p, c.whitelist)
 			}
 		}
 
@@ -57,8 +66,29 @@ func (c *Cleaner) Uninstall(ctx context.Context, packages []pkg.Package, dryRun 
 	return results
 }
 
-// FindLeftovers returns paths of leftover config/cache/data directories for
+// attachLeftovers runs the per-manager scanner and copies its findings
+// into the result. Results are also flattened to the legacy
+// Leftovers []string slice so callers that have not migrated yet keep
+// working.
+func attachLeftovers(result *pkg.UninstallResult, p pkg.Package, w *leftover.Whitelist) {
+	scan := leftover.ScannerFor(p.Manager, w).Scan(p)
+	result.LeftoverEntries = make([]pkg.LeftoverEntry, 0, len(scan.Entries))
+	for _, e := range scan.Entries {
+		result.LeftoverEntries = append(result.LeftoverEntries, pkg.LeftoverEntry{
+			Path:        e.Path,
+			Size:        e.Size,
+			Whitelisted: e.Whitelisted,
+		})
+		result.Leftovers = append(result.Leftovers, e.Path)
+	}
+	result.LeftoverTotal = scan.Total
+}
+
+// FindLeftovers returns paths of leftover config/cache directories for
 // a given package name, using platform-appropriate locations.
+//
+// Deprecated: prefer leftover.ScannerFor(manager) which returns rich
+// metadata (size, whitelist status). Kept for any remaining callers.
 func FindLeftovers(pkgName string) []string {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -69,7 +99,7 @@ func FindLeftovers(pkgName string) []string {
 	cacheDir, _ := os.UserCacheDir()
 
 	candidates := []string{
-		filepath.Join(home, "."+pkgName), // legacy dot-dir (all platforms)
+		filepath.Join(home, "."+pkgName),
 	}
 
 	if configDir != "" {
@@ -89,7 +119,7 @@ func FindLeftovers(pkgName string) []string {
 		if programData != "" {
 			candidates = append(candidates, filepath.Join(programData, pkgName))
 		}
-	default: // linux, darwin
+	default:
 		candidates = append(candidates,
 			filepath.Join(home, ".local", "share", pkgName),
 			filepath.Join("/etc", pkgName),
