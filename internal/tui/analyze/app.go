@@ -48,15 +48,17 @@ type App struct {
 
 	width, height int
 
-	result      coreanalyze.Result
-	err         error
-	cursor      int
-	largeCursor int
-	showLarge   bool
-	history     *coreanalyze.History
-	pendingPath string // path queued for trash when in stateConfirmTrash
-	pendingFile bool   // true when pending target is a single file (large-files overlay)
-	statusMsg   string // transient status (e.g. "trashed: foo")
+	result           coreanalyze.Result
+	err              error
+	cursor           int
+	scrollOffset     int // viewport offset for the entry list
+	largeCursor      int
+	largeScrollOffset int // viewport offset for the large-files overlay
+	showLarge        bool
+	history          *coreanalyze.History
+	pendingPath      string // path queued for trash when in stateConfirmTrash
+	pendingFile      bool   // true when pending target is a single file (large-files overlay)
+	statusMsg        string // transient status (e.g. "trashed: foo")
 }
 
 // New constructs the App from the supplied Config.
@@ -71,6 +73,16 @@ func New(cfg Config) *App {
 		spinner: sp,
 		history: coreanalyze.NewHistory(0),
 	}
+}
+
+// safeWidth returns a content width that is safe even before the first
+// WindowSizeMsg arrives (a.width == 0 → default 40 min).
+func (a *App) safeWidth() int {
+	w := a.width - 4
+	if w < 40 {
+		return 40
+	}
+	return w
 }
 
 // Run starts the TUI program.
@@ -102,6 +114,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "L":
 			a.showLarge = !a.showLarge
 			a.largeCursor = 0
+			a.largeScrollOffset = 0
 		case "d", "delete":
 			return a.queueTrash()
 		}
@@ -174,6 +187,7 @@ func (a *App) handleLargeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc", "L":
 		a.showLarge = false
+		a.largeScrollOffset = 0
 	case "up", "k":
 		if a.largeCursor > 0 {
 			a.largeCursor--
@@ -201,6 +215,7 @@ func (a *App) openSelected() (tea.Model, tea.Cmd) {
 	a.cfg.Path = sel.Path
 	a.state = stateLoading
 	a.cursor = 0
+	a.scrollOffset = 0
 	return a, tea.Batch(a.spinner.Tick, a.startScan(sel.Path))
 }
 
@@ -213,6 +228,7 @@ func (a *App) goBack() (tea.Model, tea.Cmd) {
 	}
 	a.result = prev.Result
 	a.cursor = prev.Cursor
+	a.scrollOffset = 0
 	a.cfg.Path = prev.Result.Path
 	a.state = stateList
 	return a, nil
@@ -275,7 +291,7 @@ func (a *App) viewConfirmTrash() string {
 		a.theme.Body.Render("n / esc     cancel"),
 	)
 	panel := components.Panel(a.theme, " Confirm trash ", body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 	return panel
 }
 
@@ -293,28 +309,54 @@ func (a *App) viewLoading() string {
 		a.theme.Body.Render("Scanning "+a.cfg.Path),
 	)
 	panel := components.Panel(a.theme, " Disk explorer ", body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 	footer := components.KeyHints(a.theme, []components.KeyHint{{Key: "ctrl+c", Action: "cancel"}})
 	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
 }
 
 func (a *App) viewList() string {
+	total := len(a.result.Entries)
+	visibleRows := a.height - 8
+	if visibleRows < 5 {
+		visibleRows = 5
+	}
+
+	// Clamp scroll offset so cursor stays in view.
+	if a.cursor >= a.scrollOffset+visibleRows {
+		a.scrollOffset = a.cursor - visibleRows + 1
+	}
+	if a.cursor < a.scrollOffset {
+		a.scrollOffset = a.cursor
+	}
+
 	crumbs := strings.Repeat("◂ ", a.history.Len())
 	header := fmt.Sprintf(" %s%s   Total: %s   Files: %d ",
 		crumbs, a.cfg.Path, formatBytes(a.result.TotalSize), a.result.TotalFiles)
 	if a.statusMsg != "" {
 		header += " · " + a.statusMsg
 	}
+	if total > 0 {
+		end := a.scrollOffset + visibleRows
+		if end > total {
+			end = total
+		}
+		header += fmt.Sprintf(" [%d-%d/%d]", a.scrollOffset+1, end, total)
+	}
 
 	var lines []string
-	total := a.result.TotalSize
-	if total == 0 {
-		total = 1
+	totalSize := a.result.TotalSize
+	if totalSize == 0 {
+		totalSize = 1
 	}
-	for i, e := range a.result.Entries {
-		pct := float64(e.Size) / float64(total)
+	end := a.scrollOffset + visibleRows
+	if end > total {
+		end = total
+	}
+	for i, e := range a.result.Entries[a.scrollOffset:end] {
+		idx := a.scrollOffset + i
+		pct := float64(e.Size) / float64(totalSize)
 		marker := "  "
-		if i == a.cursor {
+		if idx == a.cursor {
 			marker = a.theme.Subtitle.Render("➤ ")
 		}
 		icon := "📄"
@@ -333,7 +375,7 @@ func (a *App) viewList() string {
 	}
 	body := strings.Join(lines, "\n")
 	panel := components.Panel(a.theme, header, body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "↑/↓", Action: "navigate"},
@@ -350,17 +392,38 @@ func (a *App) viewLargeFiles() string {
 	if len(a.result.LargeFiles) == 0 {
 		body := a.theme.Subtle.Render("  No files above the size threshold in this tree.")
 		panel := components.Panel(a.theme, " Large files ", body,
-			components.PanelOpts{Width: a.width - 4, Accent: true})
+			components.PanelOpts{Width: a.safeWidth(), Accent: true})
 		footer := components.KeyHints(a.theme, []components.KeyHint{
 			{Key: "L / esc", Action: "close"},
 			{Key: "q", Action: "quit"},
 		})
 		return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
 	}
+
+	total := len(a.result.LargeFiles)
+	visibleRows := a.height - 8
+	if visibleRows < 5 {
+		visibleRows = 5
+	}
+
+	// Clamp scroll offset so largeCursor stays in view.
+	if a.largeCursor >= a.largeScrollOffset+visibleRows {
+		a.largeScrollOffset = a.largeCursor - visibleRows + 1
+	}
+	if a.largeCursor < a.largeScrollOffset {
+		a.largeScrollOffset = a.largeCursor
+	}
+
+	end := a.largeScrollOffset + visibleRows
+	if end > total {
+		end = total
+	}
+
 	var lines []string
-	for i, f := range a.result.LargeFiles {
+	for i, f := range a.result.LargeFiles[a.largeScrollOffset:end] {
+		idx := a.largeScrollOffset + i
 		marker := "  "
-		if i == a.largeCursor {
+		if idx == a.largeCursor {
 			marker = a.theme.Subtitle.Render("➤ ")
 		}
 		row := fmt.Sprintf("%s%s   %-40s   %s",
@@ -372,8 +435,9 @@ func (a *App) viewLargeFiles() string {
 		lines = append(lines, row)
 	}
 	body := strings.Join(lines, "\n")
-	panel := components.Panel(a.theme, fmt.Sprintf(" Large files — top %d ", len(a.result.LargeFiles)),
-		body, components.PanelOpts{Width: a.width - 4, Accent: true})
+	header := fmt.Sprintf(" Large files — top %d  [%d-%d/%d] ", total, a.largeScrollOffset+1, end, total)
+	panel := components.Panel(a.theme, header, body,
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "↑/↓", Action: "navigate"},
 		{Key: "d", Action: "trash"},
