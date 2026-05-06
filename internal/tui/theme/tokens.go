@@ -31,6 +31,13 @@ const (
 
 	ProgressStart = Primary
 	ProgressEnd   = PrimarySoft
+
+	// Semantic aliases for menu dashboard.
+	BorderActive  = Primary
+	BorderActive2 = Accent
+	BorderIdle    = SurfaceBorder
+	BarActive     = Primary
+	BrandPanelBg  = SurfaceElevated
 )
 
 // ManagerColor maps each supported package manager to its badge foreground.
