@@ -129,10 +129,6 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.bundles = msg.bundles
-		// Pre-select all discovered apps.
-		for _, b := range msg.bundles {
-			a.selected[b.Path] = true
-		}
 		a.state = stateList
 
 	case bundleDeleteDoneMsg:
@@ -229,15 +225,13 @@ func (a *App) keyList(key string) (tea.Model, tea.Cmd) {
 		if a.cursor > 0 {
 			a.cursor--
 		}
-		// Scroll up if cursor moves above visible window.
-		if a.cursor < a.scrollOffset {
-			a.scrollOffset = a.cursor
-		}
+		a.clampScroll(len(a.bundles))
 
 	case a.keys.isDown(key):
 		if a.cursor < len(a.bundles)-1 {
 			a.cursor++
 		}
+		a.clampScroll(len(a.bundles))
 
 	case key == a.keys.Space:
 		if len(a.bundles) > 0 {

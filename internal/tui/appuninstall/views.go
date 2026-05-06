@@ -40,7 +40,6 @@ func (a *App) viewList() string {
 	}
 
 	total := len(a.bundles)
-	a.clampScroll(total)
 	vr := a.visibleRows()
 
 	var totalSize int64
