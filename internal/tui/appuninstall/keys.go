@@ -23,7 +23,7 @@ func defaultKeys() keyMap {
 	return keyMap{
 		Up:     []string{"up", "k"},
 		Down:   []string{"down", "j"},
-		Space:  " ",
+		Space:  "space",
 		All:    "a",
 		Enter:  "enter",
 		Detail: "d",

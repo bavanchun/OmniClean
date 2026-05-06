@@ -199,7 +199,7 @@ func (a *App) keyList(key string) (tea.Model, tea.Cmd) {
 		if a.cursor < len(a.targets)-1 {
 			a.cursor++
 		}
-	case " ", "x":
+	case "space", "x":
 		t := a.targets[a.cursor]
 		a.selected[t.Path] = !a.selected[t.Path]
 	case "a":
