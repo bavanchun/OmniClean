@@ -559,12 +559,6 @@ func (a *App) buildResultTable() {
 }
 
 func (a *App) resultView() string {
-	var b strings.Builder
-
-	fmt.Fprintln(&b, a.styles.Title.Render(" 📋 Uninstall Results "))
-	fmt.Fprintln(&b)
-
-	// Summary counts
 	successCount, failedCount, dryRunCount := 0, 0, 0
 	for _, r := range a.results {
 		switch {
@@ -577,55 +571,60 @@ func (a *App) resultView() string {
 		}
 	}
 
-	// Render each result with icons
+	// Metric chips
+	chips := []string{
+		components.Badge(a.theme, components.BadgeSuccess, fmt.Sprintf(" %d removed ", successCount)),
+	}
+	if failedCount > 0 {
+		chips = append(chips, components.Badge(a.theme, components.BadgeError, fmt.Sprintf(" %d failed ", failedCount)))
+	}
+	if dryRunCount > 0 {
+		chips = append(chips, components.Badge(a.theme, components.BadgeDryRun, fmt.Sprintf(" %d dry-run ", dryRunCount)))
+	}
+	header := lipgloss.JoinHorizontal(lipgloss.Left, chips...)
+
+	// Result rows
+	var rows []string
 	for _, r := range a.results {
-		badge := a.styles.BadgeFor(string(r.Package.Manager))
+		manager := components.Badge(a.theme, components.BadgeManager, string(r.Package.Manager))
 		switch {
 		case r.DryRunCmd != "":
-			dryIcon := a.styles.DryRunBadge.Render("DRY")
-			fmt.Fprintf(&b, "  %s %s %s\n", dryIcon, badge, r.Package.Name)
-			fmt.Fprintf(&b, "    %s\n", a.styles.HelpBar.Render(r.DryRunCmd))
-
+			head := fmt.Sprintf("  %s  %s  %s",
+				components.Badge(a.theme, components.BadgeDryRun, "DRY"),
+				manager, a.theme.Strong.Render(r.Package.Name))
+			body := "      " + a.theme.Dim.Render(r.DryRunCmd)
+			rows = append(rows, head, body)
 		case r.Err != nil:
-			fmt.Fprintf(&b, "  %s %s %s\n",
-				a.styles.ErrorText.Render("✗"), badge, r.Package.Name)
-			fmt.Fprintf(&b, "    %s\n", a.styles.ErrorText.Render(r.Err.Error()))
-
+			head := fmt.Sprintf("  %s  %s  %s",
+				a.theme.Error.Render("✗"), manager, a.theme.Strong.Render(r.Package.Name))
+			body := "      " + a.theme.Error.Render(r.Err.Error())
+			rows = append(rows, head, body)
 		default:
-			okStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSuccess))
-			fmt.Fprintf(&b, "  %s %s %s\n", okStyle.Render("✓"), badge, r.Package.Name)
+			head := fmt.Sprintf("  %s  %s  %s",
+				a.theme.Success.Render("✓"), manager, a.theme.Strong.Render(r.Package.Name))
+			rows = append(rows, head)
 			if len(r.Leftovers) > 0 {
-				fmt.Fprintf(&b, "    %s\n",
-					a.styles.HelpBar.Render("Leftover files: "+strings.Join(r.Leftovers, ", ")))
+				rows = append(rows, "      "+a.theme.Subtle.Render("leftovers: "+strings.Join(r.Leftovers, ", ")))
 			}
 		}
 	}
+	body := strings.Join(rows, "\n")
 
-	fmt.Fprintln(&b)
-
-	// Summary bar
-	var summary string
-	switch {
-	case dryRunCount > 0:
-		summary = fmt.Sprintf("Dry run: %d commands shown", dryRunCount)
-	default:
-		summary = fmt.Sprintf("Done: %d removed", successCount)
-		if failedCount > 0 {
-			summary += fmt.Sprintf(", %d failed", failedCount)
-		}
+	width := a.width - 4
+	if width < 40 {
+		width = 40
 	}
-	summaryStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color(ColorPrimary)).
-		Padding(0, 1).
-		Bold(true)
-	fmt.Fprintln(&b, summaryStyle.Render(summary))
+	panel := components.Panel(a.theme, " Uninstall results ", body,
+		components.PanelOpts{Width: width, Accent: true})
 
-	// Help
-	resultKeys := DefaultResultKeyMap()
-	fmt.Fprint(&b, "\n  "+a.help.View(resultKeys))
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "r", Action: "rescan"},
+		{Key: "q", Action: "quit"},
+	})
 
-	return b.String()
+	return lipgloss.JoinVertical(lipgloss.Left,
+		header, "", panel, "", footer,
+	)
 }
 
 // splashView renders the branded loading screen as two stacked panels:
