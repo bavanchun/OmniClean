@@ -1,28 +1,196 @@
 // Package analyze drives the interactive disk explorer used by
-// `omniclean analyze`. The skeleton here makes the binary build today;
-// list/navigation/large-files/trash views land in Phase 3.7-3.10.
+// `omniclean analyze`. Phase 3.7 implements loading + list views with
+// the bar renderer; navigation/large-files/trash land in subsequent
+// commits.
 package analyze
 
 import (
 	"context"
-	"errors"
+	"fmt"
+	"strings"
 
-	"github.com/bavanchun/OmniClean/internal/analyze"
+	"charm.land/bubbles/v2/spinner"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
+
+	coreanalyze "github.com/bavanchun/OmniClean/internal/analyze"
+	"github.com/bavanchun/OmniClean/internal/tui/components"
+	"github.com/bavanchun/OmniClean/internal/tui/theme"
 )
 
 // Config wires the cobra command to the TUI program.
 type Config struct {
 	Path    string
-	Options analyze.Options
+	Options coreanalyze.Options
 }
 
-// App is the placeholder Bubbletea program.
-type App struct{ cfg Config }
+type viewState int
+
+const (
+	stateLoading viewState = iota
+	stateList
+	stateError
+)
+
+// scanDoneMsg is delivered when the disk scan finishes.
+type scanDoneMsg struct {
+	Result coreanalyze.Result
+	Err    error
+}
+
+// App is the root Bubbletea model.
+type App struct {
+	cfg     Config
+	state   viewState
+	theme   theme.Styles
+	spinner spinner.Model
+
+	width, height int
+
+	result coreanalyze.Result
+	err    error
+	cursor int
+}
 
 // New constructs the App from the supplied Config.
-func New(cfg Config) *App { return &App{cfg: cfg} }
+func New(cfg Config) *App {
+	sp := spinner.New()
+	sp.Spinner = spinner.Dot
+	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
+	return &App{cfg: cfg, state: stateLoading, theme: theme.New(), spinner: sp}
+}
 
-// Run starts the TUI. The interactive views land in subsequent commits.
+// Run starts the TUI program.
 func (a *App) Run(ctx context.Context) error {
-	return errors.New("analyze TUI is under construction; see roadmap Phase 3.7-3.10")
+	p := tea.NewProgram(a, tea.WithContext(ctx))
+	_, err := p.Run()
+	if err != nil {
+		return fmt.Errorf("run analyze tui: %w", err)
+	}
+	return nil
+}
+
+func (a *App) Init() tea.Cmd {
+	return tea.Batch(a.spinner.Tick, a.startScan(a.cfg.Path))
+}
+
+func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		a.width = msg.Width
+		a.height = msg.Height
+	case tea.KeyPressMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			return a, tea.Quit
+		case "up", "k":
+			if a.cursor > 0 {
+				a.cursor--
+			}
+		case "down", "j":
+			if a.cursor < len(a.result.Entries)-1 {
+				a.cursor++
+			}
+		}
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		a.spinner, cmd = a.spinner.Update(msg)
+		return a, cmd
+	case scanDoneMsg:
+		if msg.Err != nil {
+			a.err = msg.Err
+			a.state = stateError
+			return a, nil
+		}
+		a.result = msg.Result
+		a.state = stateList
+	}
+	return a, nil
+}
+
+func (a *App) View() tea.View {
+	var content string
+	switch a.state {
+	case stateLoading:
+		content = a.viewLoading()
+	case stateError:
+		content = a.theme.Error.Render("Scan failed: " + a.err.Error())
+	default:
+		content = a.viewList()
+	}
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
+}
+
+func (a *App) startScan(path string) tea.Cmd {
+	opts := a.cfg.Options
+	return func() tea.Msg {
+		res, err := coreanalyze.NewWalker().Scan(context.Background(), path, opts)
+		return scanDoneMsg{Result: res, Err: err}
+	}
+}
+
+func (a *App) viewLoading() string {
+	body := fmt.Sprintf("  %s  %s",
+		a.spinner.View(),
+		a.theme.Body.Render("Scanning "+a.cfg.Path),
+	)
+	panel := components.Panel(a.theme, " Disk explorer ", body,
+		components.PanelOpts{Width: a.width - 4, Accent: true})
+	footer := components.KeyHints(a.theme, []components.KeyHint{{Key: "ctrl+c", Action: "cancel"}})
+	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
+}
+
+func (a *App) viewList() string {
+	header := fmt.Sprintf(" %s   Total: %s   Files: %d ",
+		a.cfg.Path, formatBytes(a.result.TotalSize), a.result.TotalFiles)
+
+	var lines []string
+	total := a.result.TotalSize
+	if total == 0 {
+		total = 1
+	}
+	for i, e := range a.result.Entries {
+		pct := float64(e.Size) / float64(total)
+		marker := "  "
+		if i == a.cursor {
+			marker = a.theme.Subtitle.Render("➤ ")
+		}
+		icon := "📄"
+		if e.IsDir {
+			icon = "📁"
+		}
+		row := fmt.Sprintf("%s%s  %5.1f%%  %s  %-30s  %s",
+			marker,
+			a.theme.Subtitle.Render(bar(20, pct)),
+			pct*100,
+			icon,
+			truncate(e.Name, 30),
+			a.theme.Strong.Render(formatBytes(e.Size)),
+		)
+		lines = append(lines, row)
+	}
+	body := strings.Join(lines, "\n")
+	panel := components.Panel(a.theme, header, body,
+		components.PanelOpts{Width: a.width - 4, Accent: true})
+
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "↑/↓", Action: "navigate"},
+		{Key: "enter", Action: "open (3.8)"},
+		{Key: "L", Action: "large files (3.9)"},
+		{Key: "del", Action: "trash (3.10)"},
+		{Key: "q", Action: "quit"},
+	})
+	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
+}
+
+func truncate(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	if n <= 1 {
+		return s[:n]
+	}
+	return s[:n-1] + "…"
 }
