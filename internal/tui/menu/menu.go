@@ -142,6 +142,11 @@ func (a *App) View() tea.View {
 	return v
 }
 
+// minTwoColWidth is the threshold below which the menu collapses
+// to a single-column stack (banner above cards) so nothing wraps or
+// overflows on narrow terminals.
+const minTwoColWidth = 80
+
 func (a *App) render() string {
 	cards := make([]string, len(menuItems))
 	for i, it := range menuItems {
@@ -149,7 +154,13 @@ func (a *App) render() string {
 	}
 	right := lipgloss.JoinVertical(lipgloss.Left, cards...)
 	left := a.renderBrandPanel()
-	body := lipgloss.JoinHorizontal(lipgloss.Top, left, "   ", right)
+
+	var body string
+	if a.width > 0 && a.width < minTwoColWidth {
+		body = lipgloss.JoinVertical(lipgloss.Center, left, "", right)
+	} else {
+		body = lipgloss.JoinHorizontal(lipgloss.Top, left, "   ", right)
+	}
 
 	help := helpStyle.Render("↑/↓ navigate · 1-3 jump · ↵ select · q quit")
 	content := lipgloss.JoinVertical(lipgloss.Center, body, "", help)
