@@ -77,6 +77,7 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 	root.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose debug logging")
 
 	root.AddCommand(newUpdateCmd())
+	root.AddCommand(newPurgeCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
