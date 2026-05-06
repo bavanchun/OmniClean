@@ -5,7 +5,6 @@ package purge
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -80,11 +79,6 @@ func (a *App) Run(ctx context.Context) error {
 		return fmt.Errorf("run purge tui: %w", err)
 	}
 	return nil
-}
-
-// EditPaths is the future paths editor; still a placeholder.
-func EditPaths(_ string, _ []string) error {
-	return errors.New("purge --paths editor lands in Phase 2.9")
 }
 
 // --- Bubbletea contract ---
