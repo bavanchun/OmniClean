@@ -57,6 +57,8 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 				return runAnalyzeDefault(context.Background())
 			case menutui.SelectPurge:
 				return runPurgeDefault(context.Background(), dryRun, noConfirm)
+			case menutui.SelectUninstallApps:
+				return runUninstallApps(context.Background(), dryRun)
 			default:
 				return nil // Quit
 			}

@@ -4,6 +4,7 @@ package menu
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -20,10 +21,11 @@ import (
 type Selection int
 
 const (
-	SelectNone      Selection = iota
-	SelectUninstall           // package uninstall TUI
-	SelectAnalyze             // disk analyzer TUI
-	SelectPurge               // project artifact purge TUI
+	SelectNone          Selection = iota
+	SelectUninstall                // package uninstall TUI
+	SelectAnalyze                  // disk analyzer TUI
+	SelectPurge                    // project artifact purge TUI
+	SelectUninstallApps            // macOS app bundle uninstall TUI (darwin only)
 	SelectQuit
 )
 
@@ -32,12 +34,19 @@ type menuItem struct {
 	desc  string
 }
 
-// menuItems lists the primary actions. Quit is intentionally NOT here:
-// it is a key-only affordance (q / esc) surfaced by the help footer.
-var menuItems = []menuItem{
-	{"Uninstall Packages", "Search and remove packages across all managers"},
-	{"Analyze Disk", "Explore disk usage and trash large files"},
-	{"Purge Project Artifacts", "Clean node_modules, target, .venv and more"},
+// buildMenuItems returns the primary action list. Quit is intentionally NOT
+// here — it is a key-only affordance (q / esc) surfaced by the help footer.
+// On Darwin an extra entry for app-bundle uninstall is appended at runtime.
+func buildMenuItems() []menuItem {
+	items := []menuItem{
+		{"Uninstall Packages", "Search and remove packages across all managers"},
+		{"Analyze Disk", "Explore disk usage and trash large files"},
+		{"Purge Project Artifacts", "Clean node_modules, target, .venv and more"},
+	}
+	if runtime.GOOS == "darwin" {
+		items = append(items, menuItem{"Uninstall Apps", "Remove .app bundles and orphan files"})
+	}
+	return items
 }
 
 // Options tunes the menu's behavior at construction time.
@@ -65,6 +74,7 @@ func tickCmd() tea.Cmd {
 type App struct {
 	cursor   int
 	selected Selection
+	items    []menuItem
 	width    int
 	height   int
 	keys     keyMap
@@ -83,6 +93,7 @@ func New(opts Options) *App {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
 	return &App{
 		selected: SelectNone,
+		items:    buildMenuItems(),
 		keys:     defaultKeys(),
 		help:     help.New(),
 		fancy:    opts.Fancy,
@@ -190,7 +201,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.cursor--
 			}
 		case key.Matches(msg, a.keys.Down):
-			if a.cursor < len(menuItems)-1 {
+			if a.cursor < len(a.items)-1 {
 				a.cursor++
 			}
 		case key.Matches(msg, a.keys.Select):
@@ -198,7 +209,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, tea.Quit
 		case key.Matches(msg, a.keys.Jump):
 			idx := int(msg.String()[0] - '1')
-			if idx < len(menuItems) {
+			if idx < len(a.items) {
 				a.cursor = idx
 				a.selected = Selection(idx + 1)
 				return a, tea.Quit
@@ -226,8 +237,8 @@ func (a *App) View() tea.View {
 const minTwoColWidth = 80
 
 func (a *App) render() string {
-	cards := make([]string, len(menuItems))
-	for i, it := range menuItems {
+	cards := make([]string, len(a.items))
+	for i, it := range a.items {
 		cards[i] = a.renderCard(i, it)
 	}
 	right := lipgloss.JoinVertical(lipgloss.Left, cards...)
