@@ -14,9 +14,9 @@ import (
 
 func newAnalyzeCmd() *cobra.Command {
 	var (
-		jsonOut       bool
-		largeMin      string
-		largeTopN     int
+		jsonOut   bool
+		largeMin  string
+		largeTopN int
 	)
 
 	cmd := &cobra.Command{

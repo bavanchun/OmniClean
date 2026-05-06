@@ -13,8 +13,8 @@ import (
 // quoted into a single-quoted PowerShell literal to avoid escape
 // surprises with spaces or apostrophes.
 func MoveToTrash(path string) error {
-	script := fmt.Sprintf(`Add-Type -AssemblyName Microsoft.VisualBasic; ` +
-		`[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('%s', ` +
+	script := fmt.Sprintf(`Add-Type -AssemblyName Microsoft.VisualBasic; `+
+		`[Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory('%s', `+
 		`'OnlyErrorDialogs', 'SendToRecycleBin')`, escapePS(path))
 	cmd := exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", script)
 	if out, err := cmd.CombinedOutput(); err != nil {

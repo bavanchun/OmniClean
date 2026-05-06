@@ -34,5 +34,5 @@ func ScannerFor(mgr pkg.ManagerType, w *Whitelist) Scanner {
 
 type noopScanner struct{ mgr pkg.ManagerType }
 
-func (n noopScanner) Manager() pkg.ManagerType    { return n.mgr }
-func (n noopScanner) Scan(p pkg.Package) Result   { return Result{Manager: n.mgr, Package: p.Name} }
+func (n noopScanner) Manager() pkg.ManagerType  { return n.mgr }
+func (n noopScanner) Scan(p pkg.Package) Result { return Result{Manager: n.mgr, Package: p.Name} }

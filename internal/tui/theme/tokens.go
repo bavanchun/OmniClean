@@ -9,9 +9,9 @@ package theme
 // Brand and semantic palette. Hex strings are kept here as the single
 // source of truth; views must reference these names rather than literals.
 const (
-	Primary   = "#7C3AED"
+	Primary     = "#7C3AED"
 	PrimarySoft = "#E9D8FD"
-	Accent    = "#9F7AEA"
+	Accent      = "#9F7AEA"
 
 	Success = "#48BB78"
 	Warning = "#F6AD55"

@@ -25,11 +25,11 @@ const (
 // as safe to delete. Project is the human-readable parent project name
 // (basename of the project root) used for grouping in the TUI.
 type Target struct {
-	Path    string
-	Project string
-	Stack   Stack
-	Pattern string
-	Size    int64
+	Path     string
+	Project  string
+	Stack    Stack
+	Pattern  string
+	Size     int64
 	Modified time.Time
 	// Recent is true when Modified is within the recency threshold
 	// (default 7 days). Recent targets are pre-unselected in the TUI so

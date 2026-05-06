@@ -21,11 +21,11 @@ type Entry struct {
 
 // Result aggregates a scan run for one package.
 type Result struct {
-	Manager  pkg.ManagerType
-	Package  string
-	Entries  []Entry
-	Total    int64 // sum of Entries[].Size
-	Skipped  []string
+	Manager pkg.ManagerType
+	Package string
+	Entries []Entry
+	Total   int64 // sum of Entries[].Size
+	Skipped []string
 }
 
 // Scanner inspects the filesystem for leftover artifacts of a single
