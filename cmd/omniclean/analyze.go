@@ -66,9 +66,18 @@ machine-readable JSON payload.`,
 }
 
 // shouldEmitJSON honors the --json flag and auto-detects when stdout is
-// not a terminal. The terminal detection is wired in Phase 3.11; for
-// now we only act on the explicit flag.
-func shouldEmitJSON(flag bool) bool { return flag }
+// not a terminal (piped or redirected). The character-device test
+// works across Linux, macOS, and Windows without extra dependencies.
+func shouldEmitJSON(flag bool) bool {
+	if flag {
+		return true
+	}
+	fi, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) == 0
+}
 
 func defaultAnalyzePath() string {
 	if h, err := os.UserHomeDir(); err == nil && h != "" {
