@@ -5,9 +5,17 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/bavanchun/OmniClean)](https://github.com/bavanchun/OmniClean/releases/latest)
 
-A cross-platform TUI tool that aggregates packages from multiple package managers into a single searchable interface for clean uninstallation.
+A cross-platform Go TUI that turns ten different package managers, project artifact graveyards, and disk-usage hot spots into one keyboard-driven workflow.
 
 <!-- TODO: add a screenshot or GIF of the TUI here -->
+
+## Features
+
+- **Smart uninstall** — single searchable list across apt, brew, snap, flatpak, pip, npm, cargo, winget, choco, and scoop, with package-detail view and dry-run.
+- **Leftover detection v2** — per-manager scanners locate residual caches, configs, and per-app data with byte-accurate sizes and a user-editable whitelist (`~/.config/omniclean/whitelist`).
+- **Project artifact purge** — `omniclean purge` walks configured project roots and lists `node_modules`, `target`, `.venv`, `__pycache__`, `.gradle`, `bin/obj`, `dist`, and friends, with per-stack badges, recent-build protection, and a confirm-before-delete flow.
+- **Interactive disk explorer** — `omniclean analyze` is a Bubbletea/Lip Gloss disk explorer with bar-rendered usage, breadcrumb navigation, a large-files overlay, and OS-native trash (Finder, gio/trash-cli, Recycle Bin).
+- **Pipeable** — `omniclean analyze --json` (or any non-TTY stdout) emits stable JSON for scripting.
 
 ## Supported Package Managers
 
@@ -55,20 +63,25 @@ sudo mv bin/omniclean /usr/local/bin/
 ## Usage
 
 ```bash
-# Launch interactive TUI
+# Launch the package uninstall TUI
 omniclean
 
-# Preview what would be removed (no changes made)
+# Preview without making changes
 omniclean --dry-run
 
-# Only show packages from specific managers
+# Restrict to specific managers
 omniclean --manager apt,pip
 
-# Skip the confirmation prompt
-omniclean --no-confirm
+# Project artifact purge
+omniclean purge                    # interactive review
+omniclean purge --dry-run          # preview only
+omniclean purge --paths            # edit configured scan roots
+omniclean purge --stack node,rust  # restrict by ecosystem
 
-# Show version
-omniclean --version
+# Disk explorer
+omniclean analyze ~/Code           # TUI explorer
+omniclean analyze --json | jq      # machine-readable
+omniclean analyze --large-min=1G   # raise the large-files threshold
 ```
 
 ## Key Bindings
