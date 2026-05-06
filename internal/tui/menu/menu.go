@@ -5,11 +5,15 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"charm.land/bubbles/v2/help"
 	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/spinner"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+
+	"github.com/bavanchun/OmniClean/internal/tui/theme"
 )
 
 // Selection identifies which feature the user chose.
@@ -44,6 +48,19 @@ type Options struct {
 	Fancy bool
 }
 
+// tickMsg drives the rotating border-blend offset under --fancy.
+type tickMsg time.Time
+
+// blendTickInterval keeps the gradient rotation calm enough to stay
+// well below 2% CPU on Apple Silicon idle.
+const blendTickInterval = 150 * time.Millisecond
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(blendTickInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
 // App is the BubbleTea model for the main menu.
 type App struct {
 	cursor   int
@@ -53,15 +70,23 @@ type App struct {
 	keys     keyMap
 	help     help.Model
 	fancy    bool
+	spin     spinner.Model
+	tick     int
 }
 
 // New returns a fresh App with cursor at position 0.
 func New(opts Options) *App {
+	s := spinner.New(spinner.WithSpinner(spinner.Spinner{
+		Frames: []string{"✦", "✧", "✦", "✧"},
+		FPS:    200 * time.Millisecond,
+	}))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
 	return &App{
 		selected: SelectNone,
 		keys:     defaultKeys(),
 		help:     help.New(),
 		fancy:    opts.Fancy,
+		spin:     s,
 	}
 }
 
@@ -76,6 +101,9 @@ func (a *App) renderCard(i int, item menuItem) string {
 	descStyle := inactiveDescStyle
 	if i == a.cursor {
 		style = cardActive
+		if a.fancy {
+			style = style.BorderForegroundBlendOffset(a.tick)
+		}
 		bar = barActiveStyle.Render("▌")
 		idxStyle = indexActiveStyle
 		titleStyle = activeTitleStyle
@@ -100,7 +128,11 @@ func (a *App) renderBrandPanel() string {
 		b.WriteByte('\n')
 	}
 	b.WriteByte('\n')
-	b.WriteString(titleStyle.Render("✦ OmniClean"))
+	star := "✦"
+	if a.fancy {
+		star = a.spin.View()
+	}
+	b.WriteString(titleStyle.Render(star + " OmniClean"))
 	b.WriteByte('\n')
 	b.WriteString(brandTaglineStyle.Render("Unified cleanup toolkit"))
 	b.WriteByte('\n')
@@ -123,6 +155,9 @@ func Run(opts Options) (Selection, error) {
 }
 
 func (a *App) Init() tea.Cmd {
+	if a.fancy {
+		return tea.Batch(a.spin.Tick, tickCmd())
+	}
 	return nil
 }
 
@@ -132,6 +167,21 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 		a.help.SetWidth(msg.Width)
+
+	case spinner.TickMsg:
+		if !a.fancy {
+			return a, nil
+		}
+		var cmd tea.Cmd
+		a.spin, cmd = a.spin.Update(msg)
+		return a, cmd
+
+	case tickMsg:
+		if !a.fancy {
+			return a, nil
+		}
+		a.tick++
+		return a, tickCmd()
 
 	case tea.KeyMsg:
 		switch {
