@@ -38,4 +38,19 @@ var (
 
 	helpStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.TextDim))
+
+	bannerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.Primary)).
+			Bold(true)
+
+	brandPanelStyle = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color(theme.BrandPanelBg)).
+			Padding(1, 2)
+
+	brandTaglineStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(theme.TextSubtle))
+
+	brandMetaStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.TextDim))
 )

@@ -46,6 +46,25 @@ func New() *App {
 	return &App{selected: SelectNone}
 }
 
+// renderBrandPanel composes the left-hand brand panel: ASCII banner,
+// product line, tagline, and version meta. Width is implicit in the
+// banner glyphs; the rounded border tracks them.
+func (a *App) renderBrandPanel() string {
+	var b strings.Builder
+	for _, line := range bannerLines {
+		b.WriteString(bannerStyle.Render(line))
+		b.WriteByte('\n')
+	}
+	b.WriteByte('\n')
+	b.WriteString(titleStyle.Render("✦ OmniClean"))
+	b.WriteByte('\n')
+	b.WriteString(brandTaglineStyle.Render("Unified cleanup toolkit"))
+	b.WriteByte('\n')
+	b.WriteByte('\n')
+	b.WriteString(brandMetaStyle.Render("Use ↑/↓ to navigate"))
+	return brandPanelStyle.Render(b.String())
+}
+
 // Run launches the menu program and returns the user's selection.
 func Run() (Selection, error) {
 	p := tea.NewProgram(New(), tea.WithContext(context.Background()))
