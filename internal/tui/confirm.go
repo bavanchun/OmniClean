@@ -9,6 +9,7 @@ import (
 	"github.com/muesli/reflow/truncate"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
+	"github.com/bavanchun/OmniClean/internal/tui/theme"
 )
 
 // confirmModel shows a confirmation dialog listing packages to be removed.
@@ -130,18 +131,18 @@ func (m confirmModel) View() string {
 	// Warnings
 	if m.dryRun {
 		warnBox := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
-			Background(lipgloss.Color(ColorWarning)).
-			Padding(0, 1).
+			Foreground(lipgloss.Color(theme.Black)).
+			Background(lipgloss.Color(theme.Warning)).
+			Padding(0, theme.Space1).
 			Bold(true).
 			Render(" 👁  DRY RUN — no changes will be made ")
 		fmt.Fprintln(&b, "  "+warnBox)
 		fmt.Fprintln(&b)
 	} else if m.hasSudo {
 		warnBox := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
-			Background(lipgloss.Color(ColorWarning)).
-			Padding(0, 1).
+			Foreground(lipgloss.Color(theme.Black)).
+			Background(lipgloss.Color(theme.Warning)).
+			Padding(0, theme.Space1).
 			Bold(true).
 			Render(" ⚠  Some packages require sudo access ")
 		fmt.Fprintln(&b, "  "+warnBox)
@@ -150,14 +151,14 @@ func (m confirmModel) View() string {
 
 	// Action buttons
 	yesStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color(ColorSuccess)).
-		Padding(0, 2).
+		Foreground(lipgloss.Color(theme.TextStrong)).
+		Background(lipgloss.Color(theme.Success)).
+		Padding(0, theme.Space2).
 		Bold(true)
 	noStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color(ColorError)).
-		Padding(0, 2).
+		Foreground(lipgloss.Color(theme.TextStrong)).
+		Background(lipgloss.Color(theme.Error)).
+		Padding(0, theme.Space2).
 		Bold(true)
 
 	buttons := fmt.Sprintf("  %s  %s",

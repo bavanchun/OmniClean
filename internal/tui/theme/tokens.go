@@ -18,6 +18,7 @@ const (
 	Error   = "#FC8181"
 	Info    = "#63B3ED"
 
+	Black      = "#000000"
 	TextStrong = "#FFFFFF"
 	TextBody   = "#E2E8F0"
 	TextSubtle = "#A0AEC0"

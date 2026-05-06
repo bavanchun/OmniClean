@@ -14,6 +14,7 @@ import (
 	"github.com/muesli/reflow/truncate"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
+	"github.com/bavanchun/OmniClean/internal/tui/theme"
 )
 
 // listModel wraps bubbles/list and adds multi-select state.
@@ -233,9 +234,9 @@ func (m listModel) View() string {
 
 	// Selection status bar
 	statusStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color(ColorPrimary)).
-		Padding(0, 1).
+		Foreground(lipgloss.Color(theme.TextStrong)).
+		Background(lipgloss.Color(theme.Primary)).
+		Padding(0, theme.Space1).
 		Bold(true)
 
 	sortIndicator := ""

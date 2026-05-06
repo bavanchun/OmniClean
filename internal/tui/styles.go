@@ -84,7 +84,7 @@ func DefaultStyles() Styles {
 			Background(lipgloss.Color(theme.SurfaceElevated)),
 
 		DryRunBadge: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
+			Foreground(lipgloss.Color(theme.Black)).
 			Background(lipgloss.Color(theme.Warning)).
 			Padding(0, theme.Space1).
 			Bold(true),
