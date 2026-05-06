@@ -29,6 +29,7 @@ func main() {
 		managers  []string
 		noConfirm bool
 		verbose   bool
+		fancy     bool
 	)
 
 	root := &cobra.Command{
@@ -44,7 +45,7 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 			cleanup := logger.SetupFileLogging()
 			defer cleanup()
 
-			sel, err := menutui.Run()
+			sel, err := menutui.Run(menutui.Options{Fancy: fancy})
 			if err != nil {
 				return fmt.Errorf("menu: %w", err)
 			}
@@ -66,6 +67,7 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 	root.Flags().StringSliceVarP(&managers, "manager", "m", nil, "Filter to specific manager(s) (e.g. apt,pip)")
 	root.Flags().BoolVar(&noConfirm, "no-confirm", false, "Skip confirmation prompt before uninstalling")
 	root.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose debug logging")
+	root.Flags().BoolVar(&fancy, "fancy", false, "Enable animated UI effects in the main menu")
 
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newPurgeCmd())

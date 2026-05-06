@@ -36,6 +36,14 @@ var menuItems = []menuItem{
 	{"Purge Project Artifacts", "Clean node_modules, target, .venv and more"},
 }
 
+// Options tunes the menu's behavior at construction time.
+type Options struct {
+	// Fancy enables animated effects (spinner banner star, rotating
+	// gradient offset on the active card border). Off by default —
+	// the menu is byte-identical to the static version when false.
+	Fancy bool
+}
+
 // App is the BubbleTea model for the main menu.
 type App struct {
 	cursor   int
@@ -44,14 +52,16 @@ type App struct {
 	height   int
 	keys     keyMap
 	help     help.Model
+	fancy    bool
 }
 
 // New returns a fresh App with cursor at position 0.
-func New() *App {
+func New(opts Options) *App {
 	return &App{
 		selected: SelectNone,
 		keys:     defaultKeys(),
 		help:     help.New(),
+		fancy:    opts.Fancy,
 	}
 }
 
@@ -100,8 +110,8 @@ func (a *App) renderBrandPanel() string {
 }
 
 // Run launches the menu program and returns the user's selection.
-func Run() (Selection, error) {
-	p := tea.NewProgram(New(), tea.WithContext(context.Background()))
+func Run(opts Options) (Selection, error) {
+	p := tea.NewProgram(New(opts), tea.WithContext(context.Background()))
 	final, err := p.Run()
 	if err != nil {
 		return SelectQuit, err
