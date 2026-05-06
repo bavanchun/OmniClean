@@ -29,6 +29,7 @@ type viewState int
 const (
 	stateLoading viewState = iota
 	stateList
+	stateConfirmTrash
 	stateError
 )
 
@@ -53,6 +54,9 @@ type App struct {
 	largeCursor  int
 	showLarge    bool
 	history      *coreanalyze.History
+	pendingPath  string // path queued for trash when in stateConfirmTrash
+	pendingFile  bool   // true when pending target is a single file (large-files overlay)
+	statusMsg    string // transient status (e.g. "trashed: foo")
 }
 
 // New constructs the App from the supplied Config.
@@ -89,12 +93,17 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.width = msg.Width
 		a.height = msg.Height
 	case tea.KeyPressMsg:
+		if a.state == stateConfirmTrash {
+			return a.handleConfirmKey(msg)
+		}
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return a, tea.Quit
 		case "L":
 			a.showLarge = !a.showLarge
 			a.largeCursor = 0
+		case "d", "delete":
+			return a.queueTrash()
 		}
 		if a.showLarge {
 			return a.handleLargeKey(msg)
@@ -125,6 +134,15 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.result = msg.Result
 		a.state = stateList
+	case trashDoneMsg:
+		if msg.Err != nil {
+			a.statusMsg = "trash failed: " + msg.Err.Error()
+			a.state = stateList
+			return a, nil
+		}
+		a.statusMsg = "trashed: " + msg.Path
+		a.state = stateLoading
+		return a, tea.Batch(a.spinner.Tick, a.startScan(a.cfg.Path))
 	}
 	return a, nil
 }
@@ -136,6 +154,8 @@ func (a *App) View() tea.View {
 		content = a.viewLoading()
 	case stateError:
 		content = a.theme.Error.Render("Scan failed: " + a.err.Error())
+	case stateConfirmTrash:
+		content = a.viewConfirmTrash()
 	default:
 		if a.showLarge {
 			content = a.viewLargeFiles()
@@ -198,6 +218,67 @@ func (a *App) goBack() (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
+// queueTrash captures the highlighted entry (or large file) and moves
+// to a confirmation state. We never trash silently.
+func (a *App) queueTrash() (tea.Model, tea.Cmd) {
+	if a.showLarge {
+		if len(a.result.LargeFiles) == 0 {
+			return a, nil
+		}
+		f := a.result.LargeFiles[a.largeCursor]
+		a.pendingPath = f.Path
+		a.pendingFile = true
+	} else {
+		if len(a.result.Entries) == 0 {
+			return a, nil
+		}
+		e := a.result.Entries[a.cursor]
+		a.pendingPath = e.Path
+		a.pendingFile = !e.IsDir
+	}
+	a.state = stateConfirmTrash
+	return a, nil
+}
+
+// trashDoneMsg signals MoveToTrash finished for a single path.
+type trashDoneMsg struct {
+	Path string
+	Err  error
+}
+
+func (a *App) handleConfirmKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "Y", "enter":
+		path := a.pendingPath
+		a.state = stateList
+		return a, func() tea.Msg {
+			return trashDoneMsg{Path: path, Err: coreanalyze.MoveToTrash(path)}
+		}
+	case "n", "N", "esc", "q":
+		a.state = stateList
+	}
+	return a, nil
+}
+
+func (a *App) viewConfirmTrash() string {
+	kind := "directory"
+	if a.pendingFile {
+		kind = "file"
+	}
+	header := a.theme.Strong.Render(fmt.Sprintf("Move %s to trash?", kind))
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		header, "",
+		a.theme.Body.Render("  "+a.pendingPath), "",
+		components.Badge(a.theme, components.BadgeWarning, " Files will go to your OS Trash / Recycle Bin "),
+		"",
+		a.theme.Body.Render("y / enter   confirm"),
+		a.theme.Body.Render("n / esc     cancel"),
+	)
+	panel := components.Panel(a.theme, " Confirm trash ", body,
+		components.PanelOpts{Width: a.width - 4, Accent: true})
+	return panel
+}
+
 func (a *App) startScan(path string) tea.Cmd {
 	opts := a.cfg.Options
 	return func() tea.Msg {
@@ -221,6 +302,9 @@ func (a *App) viewList() string {
 	crumbs := strings.Repeat("◂ ", a.history.Len())
 	header := fmt.Sprintf(" %s%s   Total: %s   Files: %d ",
 		crumbs, a.cfg.Path, formatBytes(a.result.TotalSize), a.result.TotalFiles)
+	if a.statusMsg != "" {
+		header += " · " + a.statusMsg
+	}
 
 	var lines []string
 	total := a.result.TotalSize
@@ -255,8 +339,8 @@ func (a *App) viewList() string {
 		{Key: "↑/↓", Action: "navigate"},
 		{Key: "enter", Action: "open"},
 		{Key: "esc", Action: "back"},
-		{Key: "L", Action: "large files (3.9)"},
-		{Key: "del", Action: "trash (3.10)"},
+		{Key: "L", Action: "large files"},
+		{Key: "d", Action: "trash"},
 		{Key: "q", Action: "quit"},
 	})
 	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
@@ -292,7 +376,7 @@ func (a *App) viewLargeFiles() string {
 		body, components.PanelOpts{Width: a.width - 4, Accent: true})
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "↑/↓", Action: "navigate"},
-		{Key: "del", Action: "trash (3.10)"},
+		{Key: "d", Action: "trash"},
 		{Key: "L / esc", Action: "close"},
 		{Key: "q", Action: "quit"},
 	})
