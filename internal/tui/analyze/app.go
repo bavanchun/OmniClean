@@ -47,9 +47,10 @@ type App struct {
 
 	width, height int
 
-	result coreanalyze.Result
-	err    error
-	cursor int
+	result  coreanalyze.Result
+	err     error
+	cursor  int
+	history *coreanalyze.History
 }
 
 // New constructs the App from the supplied Config.
@@ -57,7 +58,13 @@ func New(cfg Config) *App {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary))
-	return &App{cfg: cfg, state: stateLoading, theme: theme.New(), spinner: sp}
+	return &App{
+		cfg:     cfg,
+		state:   stateLoading,
+		theme:   theme.New(),
+		spinner: sp,
+		history: coreanalyze.NewHistory(0),
+	}
 }
 
 // Run starts the TUI program.
@@ -91,6 +98,10 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.cursor < len(a.result.Entries)-1 {
 				a.cursor++
 			}
+		case "enter", "right", "l":
+			return a.openSelected()
+		case "esc", "left", "h", "backspace":
+			return a.goBack()
 		}
 	case spinner.TickMsg:
 		var cmd tea.Cmd
@@ -123,6 +134,38 @@ func (a *App) View() tea.View {
 	return v
 }
 
+// openSelected pushes the current view onto history and triggers a
+// new scan of the highlighted directory. No-op when the cursor is on a
+// file or the result list is empty.
+func (a *App) openSelected() (tea.Model, tea.Cmd) {
+	if a.state != stateList || len(a.result.Entries) == 0 {
+		return a, nil
+	}
+	sel := a.result.Entries[a.cursor]
+	if !sel.IsDir {
+		return a, nil
+	}
+	a.history.Push(coreanalyze.HistoryEntry{Result: a.result, Cursor: a.cursor})
+	a.cfg.Path = sel.Path
+	a.state = stateLoading
+	a.cursor = 0
+	return a, tea.Batch(a.spinner.Tick, a.startScan(sel.Path))
+}
+
+// goBack pops the last view off history; when history is empty we
+// instead exit the program so users get a single clear path out.
+func (a *App) goBack() (tea.Model, tea.Cmd) {
+	prev, ok := a.history.Pop()
+	if !ok {
+		return a, tea.Quit
+	}
+	a.result = prev.Result
+	a.cursor = prev.Cursor
+	a.cfg.Path = prev.Result.Path
+	a.state = stateList
+	return a, nil
+}
+
 func (a *App) startScan(path string) tea.Cmd {
 	opts := a.cfg.Options
 	return func() tea.Msg {
@@ -143,8 +186,9 @@ func (a *App) viewLoading() string {
 }
 
 func (a *App) viewList() string {
-	header := fmt.Sprintf(" %s   Total: %s   Files: %d ",
-		a.cfg.Path, formatBytes(a.result.TotalSize), a.result.TotalFiles)
+	crumbs := strings.Repeat("◂ ", a.history.Len())
+	header := fmt.Sprintf(" %s%s   Total: %s   Files: %d ",
+		crumbs, a.cfg.Path, formatBytes(a.result.TotalSize), a.result.TotalFiles)
 
 	var lines []string
 	total := a.result.TotalSize
@@ -177,7 +221,8 @@ func (a *App) viewList() string {
 
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "↑/↓", Action: "navigate"},
-		{Key: "enter", Action: "open (3.8)"},
+		{Key: "enter", Action: "open"},
+		{Key: "esc", Action: "back"},
 		{Key: "L", Action: "large files (3.9)"},
 		{Key: "del", Action: "trash (3.10)"},
 		{Key: "q", Action: "quit"},
