@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 )
 
 // Selection identifies which feature the user chose.
@@ -119,27 +120,10 @@ func (a *App) render() string {
 	}
 
 	help := helpStyle.Render("↑/↓  navigate · enter  select · q  quit")
-	content := fmt.Sprintf("\n%s\n\n%s%s", header, items.String(), help)
+	content := fmt.Sprintf("%s\n\n%s%s", header, items.String(), help)
 
-	// Center horizontally if terminal width known
 	if a.width <= 0 {
 		return content
 	}
-	lines := strings.Split(content, "\n")
-	padLeft := max(0, (a.width-52)/2)
-	indent := strings.Repeat(" ", padLeft)
-	var out strings.Builder
-	vertPad := max(0, (a.height-len(lines))/2)
-	out.WriteString(strings.Repeat("\n", vertPad))
-	for _, line := range lines {
-		out.WriteString(indent + line + "\n")
-	}
-	return out.String()
-}
-
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
+	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, content)
 }
