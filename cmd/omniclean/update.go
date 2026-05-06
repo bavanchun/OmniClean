@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/Masterminds/semver/v3"
 	"github.com/creativeprojects/go-selfupdate"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +43,11 @@ func runUpdate(current string) error {
 		return nil
 	}
 
-	if latest.LessOrEqual(current) {
+	needsUpdate, err := isUpdateAvailable(current, latest.Version())
+	if err != nil {
+		return err
+	}
+	if !needsUpdate {
 		fmt.Printf("Already up to date (%s).\n", current)
 		return nil
 	}
@@ -62,6 +67,20 @@ func runUpdate(current string) error {
 
 	fmt.Printf("Successfully updated to %s.\n", latest.Version())
 	return nil
+}
+
+func isUpdateAvailable(current, latest string) (bool, error) {
+	latestVersion, err := semver.NewVersion(latest)
+	if err != nil {
+		return false, fmt.Errorf("latest release has invalid version %q: %w", latest, err)
+	}
+
+	currentVersion, err := semver.NewVersion(current)
+	if err != nil {
+		return true, nil
+	}
+
+	return currentVersion.LessThan(latestVersion), nil
 }
 
 func isPermissionError(err error) bool {
