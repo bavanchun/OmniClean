@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
@@ -40,11 +42,17 @@ type App struct {
 	selected Selection
 	width    int
 	height   int
+	keys     keyMap
+	help     help.Model
 }
 
 // New returns a fresh App with cursor at position 0.
 func New() *App {
-	return &App{selected: SelectNone}
+	return &App{
+		selected: SelectNone,
+		keys:     defaultKeys(),
+		help:     help.New(),
+	}
 }
 
 // renderCard composes a single action card with an accent bar, index badge,
@@ -113,28 +121,31 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		a.help.SetWidth(msg.Width)
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "up", "k":
+		switch {
+		case key.Matches(msg, a.keys.Up):
 			if a.cursor > 0 {
 				a.cursor--
 			}
-		case "down", "j":
+		case key.Matches(msg, a.keys.Down):
 			if a.cursor < len(menuItems)-1 {
 				a.cursor++
 			}
-		case "enter", " ":
+		case key.Matches(msg, a.keys.Select):
 			a.selected = Selection(a.cursor + 1)
 			return a, tea.Quit
-		case "1", "2", "3":
+		case key.Matches(msg, a.keys.Jump):
 			idx := int(msg.String()[0] - '1')
 			if idx < len(menuItems) {
 				a.cursor = idx
 				a.selected = Selection(idx + 1)
 				return a, tea.Quit
 			}
-		case "q", "ctrl+c", "esc":
+		case key.Matches(msg, a.keys.Help):
+			a.help.ShowAll = !a.help.ShowAll
+		case key.Matches(msg, a.keys.Quit):
 			a.selected = SelectQuit
 			return a, tea.Quit
 		}
@@ -169,8 +180,8 @@ func (a *App) render() string {
 		body = lipgloss.JoinHorizontal(lipgloss.Top, left, "   ", right)
 	}
 
-	help := helpStyle.Render("↑/↓ navigate · 1-3 jump · ↵ select · q quit")
-	content := lipgloss.JoinVertical(lipgloss.Center, body, "", help)
+	footer := a.help.View(a.keys)
+	content := lipgloss.JoinVertical(lipgloss.Center, body, "", footer)
 
 	if a.width <= 0 {
 		return content
