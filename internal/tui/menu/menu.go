@@ -26,11 +26,12 @@ type menuItem struct {
 	desc  string
 }
 
+// menuItems lists the primary actions. Quit is intentionally NOT here:
+// it is a key-only affordance (q / esc) surfaced by the help footer.
 var menuItems = []menuItem{
 	{"Uninstall Packages", "Search and remove packages across all managers"},
 	{"Analyze Disk", "Explore disk usage and trash large files"},
 	{"Purge Project Artifacts", "Clean node_modules, target, .venv and more"},
-	{"Quit", "Exit OmniClean"},
 }
 
 // App is the BubbleTea model for the main menu.
@@ -44,6 +45,31 @@ type App struct {
 // New returns a fresh App with cursor at position 0.
 func New() *App {
 	return &App{selected: SelectNone}
+}
+
+// renderCard composes a single action card with an accent bar, index badge,
+// title, and description. Active cards use a gradient border via Lipgloss v2's
+// BorderForegroundBlend; idle cards use a solid muted border.
+func (a *App) renderCard(i int, item menuItem) string {
+	style := cardIdle
+	bar := barIdleStyle.Render(" ")
+	idxStyle := indexIdleStyle
+	titleStyle := inactiveTitleStyle
+	descStyle := inactiveDescStyle
+	if i == a.cursor {
+		style = cardActive
+		bar = barActiveStyle.Render("▌")
+		idxStyle = indexActiveStyle
+		titleStyle = activeTitleStyle
+		descStyle = activeDescStyle
+	}
+	titleRow := fmt.Sprintf("%s %s  %s",
+		bar,
+		idxStyle.Render(fmt.Sprintf("[%d]", i+1)),
+		titleStyle.Render(item.title),
+	)
+	descRow := descStyle.Render("     " + item.desc)
+	return style.Render(titleRow + "\n" + descRow)
 }
 
 // renderBrandPanel composes the left-hand brand panel: ASCII banner,
@@ -117,29 +143,16 @@ func (a *App) View() tea.View {
 }
 
 func (a *App) render() string {
-	header := boxStyle.Render(fmt.Sprintf(
-		"%s\n%s",
-		titleStyle.Render("✦ OmniClean"),
-		subtitleStyle.Render("Unified system cleanup toolkit"),
-	))
-
-	var items strings.Builder
-	for i, item := range menuItems {
-		var pointer, title, desc string
-		if i == a.cursor {
-			pointer = cursorStyle.Render("▸ ")
-			title = activeTitleStyle.Render(item.title)
-			desc = activeDescStyle.Render("  " + item.desc)
-		} else {
-			pointer = "  "
-			title = inactiveTitleStyle.Render(item.title)
-			desc = inactiveDescStyle.Render("  " + item.desc)
-		}
-		items.WriteString(fmt.Sprintf("%s%s\n%s\n\n", pointer, title, desc))
+	cards := make([]string, len(menuItems))
+	for i, it := range menuItems {
+		cards[i] = a.renderCard(i, it)
 	}
+	right := lipgloss.JoinVertical(lipgloss.Left, cards...)
+	left := a.renderBrandPanel()
+	body := lipgloss.JoinHorizontal(lipgloss.Top, left, "   ", right)
 
-	help := helpStyle.Render("↑/↓  navigate · enter  select · q  quit")
-	content := fmt.Sprintf("%s\n\n%s%s", header, items.String(), help)
+	help := helpStyle.Render("↑/↓ navigate · 1-3 jump · ↵ select · q quit")
+	content := lipgloss.JoinVertical(lipgloss.Center, body, "", help)
 
 	if a.width <= 0 {
 		return content

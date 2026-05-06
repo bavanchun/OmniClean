@@ -53,4 +53,32 @@ var (
 
 	brandMetaStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.TextDim))
+
+	cardBase = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			Padding(0, 2).
+			Width(46)
+
+	cardActive = cardBase.
+			BorderForegroundBlend(
+			lipgloss.Color(theme.BorderActive),
+			lipgloss.Color(theme.BorderActive2),
+		)
+
+	cardIdle = cardBase.
+			BorderForeground(lipgloss.Color(theme.BorderIdle))
+
+	barActiveStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.BarActive)).
+			Bold(true)
+
+	barIdleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.TextMuted))
+
+	indexActiveStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color(theme.Accent)).
+				Bold(true)
+
+	indexIdleStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color(theme.TextDim))
 )
