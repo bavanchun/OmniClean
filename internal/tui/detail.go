@@ -9,7 +9,9 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/glamour"
 
+	"github.com/bavanchun/OmniClean/internal/leftover"
 	"github.com/bavanchun/OmniClean/internal/pkg"
+	"github.com/bavanchun/OmniClean/internal/tui/theme"
 )
 
 // detailModel shows full information for a single package.
@@ -103,6 +105,39 @@ func renderDetailContent(p pkg.Package, styles Styles) string {
 		}
 	}
 
+	if preview := leftoverPreview(p); preview != "" {
+		fmt.Fprintln(&b)
+		fmt.Fprintf(&b, "  %s\n", labelStyle.Render("Files that will remain:"))
+		fmt.Fprintln(&b)
+		fmt.Fprint(&b, preview)
+	}
+
+	return b.String()
+}
+
+// leftoverPreview runs the per-manager leftover scanner read-only and
+// renders a bulleted summary. Returns an empty string when nothing is
+// found so the section is omitted entirely.
+func leftoverPreview(p pkg.Package) string {
+	scan := leftover.ScannerFor(p.Manager, nil).Scan(p)
+	if len(scan.Entries) == 0 {
+		return ""
+	}
+	pathStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.TextSubtle))
+	sizeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.PrimarySoft)).Bold(true)
+	totalStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Primary)).Bold(true)
+
+	var b strings.Builder
+	for _, e := range scan.Entries {
+		fmt.Fprintf(&b, "    • %s  %s\n",
+			pathStyle.Render(e.Path),
+			sizeStyle.Render(formatBytes(e.Size)),
+		)
+	}
+	fmt.Fprintf(&b, "\n  %s %s\n",
+		totalStyle.Render("Total:"),
+		sizeStyle.Render(formatBytes(scan.Total)),
+	)
 	return b.String()
 }
 

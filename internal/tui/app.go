@@ -603,10 +603,27 @@ func (a *App) resultView() string {
 			head := fmt.Sprintf("  %s  %s  %s",
 				a.theme.Success.Render("✓"), manager, a.theme.Strong.Render(r.Package.Name))
 			rows = append(rows, head)
-			if len(r.Leftovers) > 0 {
+			if len(r.LeftoverEntries) > 0 {
+				rows = append(rows, fmt.Sprintf("      %s %s",
+					a.theme.Subtle.Render(fmt.Sprintf("%d leftover path(s)", len(r.LeftoverEntries))),
+					a.theme.Warning.Render("("+formatBytes(r.LeftoverTotal)+")"),
+				))
+			} else if len(r.Leftovers) > 0 {
 				rows = append(rows, "      "+a.theme.Subtle.Render("leftovers: "+strings.Join(r.Leftovers, ", ")))
 			}
 		}
+	}
+
+	// Aggregate totals for header chip
+	var leftoverTotal int64
+	for _, r := range a.results {
+		leftoverTotal += r.LeftoverTotal
+	}
+	if leftoverTotal > 0 {
+		chips = append(chips, components.Badge(a.theme, components.BadgeWarning,
+			fmt.Sprintf(" %s leftover ", formatBytes(leftoverTotal)),
+		))
+		header = lipgloss.JoinHorizontal(lipgloss.Left, chips...)
 	}
 	body := strings.Join(rows, "\n")
 
