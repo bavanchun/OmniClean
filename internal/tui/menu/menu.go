@@ -127,6 +127,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "enter", " ":
 			a.selected = Selection(a.cursor + 1)
 			return a, tea.Quit
+		case "1", "2", "3":
+			idx := int(msg.String()[0] - '1')
+			if idx < len(menuItems) {
+				a.cursor = idx
+				a.selected = Selection(idx + 1)
+				return a, tea.Quit
+			}
 		case "q", "ctrl+c", "esc":
 			a.selected = SelectQuit
 			return a, tea.Quit
