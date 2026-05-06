@@ -34,6 +34,7 @@ const (
 	stateConfirm
 	stateDeleting
 	stateResult
+	stateError
 )
 
 // App is the root Bubbletea model.
@@ -99,7 +100,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.spinner, cmd = a.spinner.Update(msg)
 		return a, cmd
 	case scanDoneMsg:
-		a.scanErr = msg.Err
+		if msg.Err != nil {
+			a.scanErr = msg.Err
+			a.state = stateError
+			return a, nil
+		}
 		a.targets = msg.Targets
 		// Pre-select non-recent entries.
 		for _, t := range msg.Targets {
@@ -136,6 +141,8 @@ func (a *App) View() tea.View {
 		content = a.viewDeleting()
 	case stateResult:
 		content = a.viewResult()
+	case stateError:
+		content = a.viewError()
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
@@ -167,6 +174,10 @@ func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		return a.keyConfirm(key)
 	case stateResult:
 		if key == "q" || key == "enter" {
+			return a, tea.Quit
+		}
+	case stateError:
+		if key == "q" || key == "ctrl+c" {
 			return a, tea.Quit
 		}
 	}
@@ -208,7 +219,7 @@ func (a *App) keyList(key string) (tea.Model, tea.Cmd) {
 		}
 		if a.cfg.NoConfirm || a.cfg.DryRun {
 			a.state = stateDeleting
-			return a, a.startDelete()
+			return a, tea.Batch(a.spinner.Tick, a.startDelete())
 		}
 		a.state = stateConfirm
 	}
@@ -219,7 +230,7 @@ func (a *App) keyConfirm(key string) (tea.Model, tea.Cmd) {
 	switch key {
 	case "y", "Y", "enter":
 		a.state = stateDeleting
-		return a, a.startDelete()
+		return a, tea.Batch(a.spinner.Tick, a.startDelete())
 	case "n", "N", "esc", "q":
 		a.state = stateList
 	}
@@ -279,7 +290,7 @@ func (a *App) viewLoading() string {
 	})
 	panel := components.Panel(a.theme, " Purge ",
 		lipgloss.JoinVertical(lipgloss.Left, header, "", body),
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
 }
 
@@ -325,13 +336,13 @@ func (a *App) viewList() string {
 		formatBytes(totalAll), formatBytes(totalSelected))
 
 	panel := components.Panel(a.theme, header, body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "↑/↓", Action: "navigate"},
 		{Key: "space", Action: "toggle"},
 		{Key: "a", Action: "all"},
-		{Key: "enter", Action: "purge (2.8)"},
+		{Key: "enter", Action: "purge selected"},
 		{Key: "q", Action: "quit"},
 	})
 
@@ -352,7 +363,7 @@ func (a *App) viewConfirm() string {
 		a.theme.Body.Render("n / esc     back to selection"),
 	)
 	panel := components.Panel(a.theme, " Confirm purge ", body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "y", Action: "delete"},
 		{Key: "n", Action: "back"},
@@ -366,7 +377,7 @@ func (a *App) viewDeleting() string {
 		a.theme.Body.Render("Removing selected artifacts…"),
 	)
 	panel := components.Panel(a.theme, " Purging ", body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 	return panel
 }
 
@@ -397,7 +408,7 @@ func (a *App) viewResult() string {
 	}
 	body := strings.Join(rows, "\n")
 	panel := components.Panel(a.theme, " Purge results ", body,
-		components.PanelOpts{Width: a.width - 4, Accent: true})
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
 
 	footer := components.KeyHints(a.theme, []components.KeyHint{
 		{Key: "q", Action: "quit"},
@@ -413,4 +424,24 @@ func truncate(s string, n int) string {
 		return s[:n]
 	}
 	return s[:n-1] + "…"
+}
+
+// safeWidth returns the panel content width, ensuring a minimum of 40.
+func (a *App) safeWidth() int {
+	w := a.safeWidth()
+	if w < 40 {
+		return 40
+	}
+	return w
+}
+
+// viewError renders the error state shown when scanning fails.
+func (a *App) viewError() string {
+	body := a.theme.Error.Render("Scan failed: " + a.scanErr.Error())
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "q", Action: "quit"},
+	})
+	panel := components.Panel(a.theme, " Error ", body,
+		components.PanelOpts{Width: a.safeWidth(), Accent: true})
+	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
 }
