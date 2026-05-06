@@ -428,7 +428,7 @@ func truncate(s string, n int) string {
 
 // safeWidth returns the panel content width, ensuring a minimum of 40.
 func (a *App) safeWidth() int {
-	w := a.safeWidth()
+	w := a.width - 4
 	if w < 40 {
 		return 40
 	}
