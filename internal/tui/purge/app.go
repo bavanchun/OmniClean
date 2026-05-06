@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 
 	"charm.land/bubbles/v2/spinner"
@@ -114,6 +115,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.state = stateList
 		return a, nil
+	case batchDeleteMsg:
+		for _, r := range msg.results {
+			if r.Err != nil {
+				a.failed[r.Target.Path] = r.Err
+			} else {
+				a.deleted = append(a.deleted, r.Target)
+			}
+		}
+		a.state = stateResult
+		return a, nil
 	}
 	return a, nil
 }
@@ -125,8 +136,12 @@ func (a *App) View() tea.View {
 		content = a.viewLoading()
 	case stateList:
 		content = a.viewList()
-	default:
-		content = a.theme.Subtle.Render("(state pending — confirm/delete views land in 2.8)")
+	case stateConfirm:
+		content = a.viewConfirm()
+	case stateDeleting:
+		content = a.viewDeleting()
+	case stateResult:
+		content = a.viewResult()
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
@@ -146,14 +161,31 @@ func (a *App) startScan() tea.Cmd {
 // --- Key handling ---
 
 func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "q", "ctrl+c":
+	key := msg.String()
+	if key == "ctrl+c" {
 		return a, tea.Quit
 	}
-	if a.state != stateList || len(a.targets) == 0 {
-		return a, nil
+
+	switch a.state {
+	case stateList:
+		return a.keyList(key)
+	case stateConfirm:
+		return a.keyConfirm(key)
+	case stateResult:
+		if key == "q" || key == "enter" {
+			return a, tea.Quit
+		}
 	}
-	switch msg.String() {
+	return a, nil
+}
+
+func (a *App) keyList(key string) (tea.Model, tea.Cmd) {
+	if len(a.targets) == 0 && key == "q" {
+		return a, tea.Quit
+	}
+	switch key {
+	case "q":
+		return a, tea.Quit
 	case "up", "k":
 		if a.cursor > 0 {
 			a.cursor--
@@ -166,7 +198,6 @@ func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		t := a.targets[a.cursor]
 		a.selected[t.Path] = !a.selected[t.Path]
 	case "a":
-		// Toggle select-all (skip Recent if currently fully selected).
 		allOn := true
 		for _, t := range a.targets {
 			if !a.selected[t.Path] {
@@ -177,9 +208,69 @@ func (a *App) handleKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
 		for _, t := range a.targets {
 			a.selected[t.Path] = !allOn && !t.Recent
 		}
+	case "enter":
+		if len(a.selectedTargets()) == 0 {
+			return a, nil
+		}
+		if a.cfg.NoConfirm || a.cfg.DryRun {
+			a.state = stateDeleting
+			return a, a.startDelete()
+		}
+		a.state = stateConfirm
 	}
 	return a, nil
 }
+
+func (a *App) keyConfirm(key string) (tea.Model, tea.Cmd) {
+	switch key {
+	case "y", "Y", "enter":
+		a.state = stateDeleting
+		return a, a.startDelete()
+	case "n", "N", "esc", "q":
+		a.state = stateList
+	}
+	return a, nil
+}
+
+// selectedTargets returns the user-selected targets in display order.
+func (a *App) selectedTargets() []corepurge.Target {
+	out := make([]corepurge.Target, 0, len(a.targets))
+	for _, t := range a.targets {
+		if a.selected[t.Path] {
+			out = append(out, t)
+		}
+	}
+	return out
+}
+
+// startDelete runs deletes sequentially in a goroutine. Sequential
+// deletion keeps disk and TUI behaviour predictable; throughput is
+// rarely the bottleneck for project artifact removal.
+func (a *App) startDelete() tea.Cmd {
+	targets := a.selectedTargets()
+	dryRun := a.cfg.DryRun
+	return func() tea.Msg {
+		// We deliver each delete as its own message via a Cmd; for
+		// simplicity here we synchronously run them and return a
+		// single allDeletedMsg, recording per-target outcomes on the
+		// returned slice. The model accumulates them via
+		// applyDeleteResults below.
+		var msgs []deleteDoneMsg
+		for _, t := range targets {
+			var err error
+			if !dryRun {
+				err = os.RemoveAll(t.Path)
+			}
+			msgs = append(msgs, deleteDoneMsg{Target: t, Err: err})
+		}
+		return batchDeleteMsg{results: msgs}
+	}
+}
+
+// batchDeleteMsg wraps every delete result so the UI updates atomically
+// when the goroutine returns. A streaming cmd-per-delete would feel
+// nicer for huge selections; this can be promoted later if needed.
+type batchDeleteMsg struct{ results []deleteDoneMsg }
 
 // --- Views ---
 
@@ -251,6 +342,73 @@ func (a *App) viewList() string {
 	})
 
 	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
+}
+
+func (a *App) viewConfirm() string {
+	selected := a.selectedTargets()
+	var total int64
+	for _, t := range selected {
+		total += t.Size
+	}
+	header := a.theme.Strong.Render(fmt.Sprintf("Delete %d directories totalling %s?", len(selected), formatBytes(total)))
+	warn := components.Badge(a.theme, components.BadgeWarning, " Permanent — files will be removed ")
+	body := lipgloss.JoinVertical(lipgloss.Left,
+		header, "", warn, "",
+		a.theme.Body.Render("y / enter   confirm and delete"),
+		a.theme.Body.Render("n / esc     back to selection"),
+	)
+	panel := components.Panel(a.theme, " Confirm purge ", body,
+		components.PanelOpts{Width: a.width - 4, Accent: true})
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "y", Action: "delete"},
+		{Key: "n", Action: "back"},
+	})
+	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
+}
+
+func (a *App) viewDeleting() string {
+	body := fmt.Sprintf("  %s  %s",
+		a.spinner.View(),
+		a.theme.Body.Render("Removing selected artifacts…"),
+	)
+	panel := components.Panel(a.theme, " Purging ", body,
+		components.PanelOpts{Width: a.width - 4, Accent: true})
+	return panel
+}
+
+func (a *App) viewResult() string {
+	var freed int64
+	for _, t := range a.deleted {
+		freed += t.Size
+	}
+	dryNote := ""
+	if a.cfg.DryRun {
+		dryNote = " " + components.Badge(a.theme, components.BadgeDryRun, " DRY RUN ")
+	}
+	chips := []string{
+		components.Badge(a.theme, components.BadgeSuccess, fmt.Sprintf(" %d removed ", len(a.deleted))),
+	}
+	if len(a.failed) > 0 {
+		chips = append(chips, components.Badge(a.theme, components.BadgeError, fmt.Sprintf(" %d failed ", len(a.failed))))
+	}
+	chips = append(chips, components.Badge(a.theme, components.BadgeInfo, fmt.Sprintf(" %s freed ", formatBytes(freed))))
+	header := lipgloss.JoinHorizontal(lipgloss.Left, chips...) + dryNote
+
+	var rows []string
+	for _, t := range a.deleted {
+		rows = append(rows, "  "+a.theme.Success.Render("✓")+"  "+a.theme.Strong.Render(t.Path)+"  "+a.theme.Subtle.Render(formatBytes(t.Size)))
+	}
+	for path, err := range a.failed {
+		rows = append(rows, "  "+a.theme.Error.Render("✗")+"  "+a.theme.Strong.Render(path)+"  "+a.theme.Error.Render(err.Error()))
+	}
+	body := strings.Join(rows, "\n")
+	panel := components.Panel(a.theme, " Purge results ", body,
+		components.PanelOpts{Width: a.width - 4, Accent: true})
+
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "q", Action: "quit"},
+	})
+	return lipgloss.JoinVertical(lipgloss.Left, header, "", panel, "", footer)
 }
 
 func truncate(s string, n int) string {
