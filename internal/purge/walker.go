@@ -73,10 +73,7 @@ func newTarget(path string, pat Pattern, now time.Time, recentDays int) Target {
 	if info, err := os.Stat(path); err == nil {
 		mod = info.ModTime()
 	}
-	recent := false
-	if !mod.IsZero() {
-		recent = now.Sub(mod) < time.Duration(recentDays)*24*time.Hour
-	}
+	recent := IsRecent(now, mod, recentDays)
 	return Target{
 		Path:     path,
 		Project:  filepath.Base(filepath.Dir(path)),
