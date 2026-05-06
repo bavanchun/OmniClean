@@ -78,6 +78,7 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newPurgeCmd())
+	root.AddCommand(newAnalyzeCmd())
 
 	if err := root.Execute(); err != nil {
 		os.Exit(1)
