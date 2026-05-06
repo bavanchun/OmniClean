@@ -245,3 +245,6 @@ CLAUDE.md
 dist/
 
 # End of https://www.toptal.com/developers/gitignore/api/go,linux,visualstudiocode,macos,windows,jetbrains
+
+# Local build artifact
+/omniclean
