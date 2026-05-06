@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 
 	"github.com/Masterminds/semver/v3"
 	"github.com/creativeprojects/go-selfupdate"
@@ -26,6 +27,8 @@ func newUpdateCmd() *cobra.Command {
 func runUpdate(current string) error {
 	fmt.Printf("Current version: %s\n", current)
 	fmt.Println("Checking for updates...")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
 
 	updater, err := selfupdate.NewUpdater(selfupdate.Config{
 		Validator: &selfupdate.ChecksumValidator{UniqueFilename: "checksums.txt"},
@@ -34,7 +37,7 @@ func runUpdate(current string) error {
 		return fmt.Errorf("failed to create updater: %w", err)
 	}
 
-	latest, found, err := updater.DetectLatest(context.Background(), selfupdate.ParseSlug("bavanchun/OmniClean"))
+	latest, found, err := updater.DetectLatest(ctx, selfupdate.ParseSlug("bavanchun/OmniClean"))
 	if err != nil {
 		return fmt.Errorf("failed to check latest version: %w", err)
 	}
@@ -53,12 +56,13 @@ func runUpdate(current string) error {
 	}
 
 	fmt.Printf("Updating to %s...\n", latest.Version())
+	fmt.Println("Downloading and replacing binary; this can take a minute on slow connections.")
 	exe, err := selfupdate.ExecutablePath()
 	if err != nil {
 		return fmt.Errorf("could not locate executable: %w", err)
 	}
 
-	if err := updater.UpdateTo(context.Background(), latest, exe); err != nil {
+	if err := updater.UpdateTo(ctx, latest, exe); err != nil {
 		if isPermissionError(err) {
 			return reExecWithSudo()
 		}
