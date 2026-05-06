@@ -47,10 +47,12 @@ type App struct {
 
 	width, height int
 
-	result  coreanalyze.Result
-	err     error
-	cursor  int
-	history *coreanalyze.History
+	result       coreanalyze.Result
+	err          error
+	cursor       int
+	largeCursor  int
+	showLarge    bool
+	history      *coreanalyze.History
 }
 
 // New constructs the App from the supplied Config.
@@ -90,6 +92,14 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return a, tea.Quit
+		case "L":
+			a.showLarge = !a.showLarge
+			a.largeCursor = 0
+		}
+		if a.showLarge {
+			return a.handleLargeKey(msg)
+		}
+		switch msg.String() {
 		case "up", "k":
 			if a.cursor > 0 {
 				a.cursor--
@@ -127,11 +137,33 @@ func (a *App) View() tea.View {
 	case stateError:
 		content = a.theme.Error.Render("Scan failed: " + a.err.Error())
 	default:
-		content = a.viewList()
+		if a.showLarge {
+			content = a.viewLargeFiles()
+		} else {
+			content = a.viewList()
+		}
 	}
 	v := tea.NewView(content)
 	v.AltScreen = true
 	return v
+}
+
+// handleLargeKey routes key presses while the large-files overlay is
+// active. Esc/L closes it; up/down move the cursor.
+func (a *App) handleLargeKey(msg tea.KeyPressMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "esc", "L":
+		a.showLarge = false
+	case "up", "k":
+		if a.largeCursor > 0 {
+			a.largeCursor--
+		}
+	case "down", "j":
+		if a.largeCursor < len(a.result.LargeFiles)-1 {
+			a.largeCursor++
+		}
+	}
+	return a, nil
 }
 
 // openSelected pushes the current view onto history and triggers a
@@ -225,6 +257,43 @@ func (a *App) viewList() string {
 		{Key: "esc", Action: "back"},
 		{Key: "L", Action: "large files (3.9)"},
 		{Key: "del", Action: "trash (3.10)"},
+		{Key: "q", Action: "quit"},
+	})
+	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
+}
+
+func (a *App) viewLargeFiles() string {
+	if len(a.result.LargeFiles) == 0 {
+		body := a.theme.Subtle.Render("  No files above the size threshold in this tree.")
+		panel := components.Panel(a.theme, " Large files ", body,
+			components.PanelOpts{Width: a.width - 4, Accent: true})
+		footer := components.KeyHints(a.theme, []components.KeyHint{
+			{Key: "L / esc", Action: "close"},
+			{Key: "q", Action: "quit"},
+		})
+		return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
+	}
+	var lines []string
+	for i, f := range a.result.LargeFiles {
+		marker := "  "
+		if i == a.largeCursor {
+			marker = a.theme.Subtitle.Render("➤ ")
+		}
+		row := fmt.Sprintf("%s%s   %-40s   %s",
+			marker,
+			a.theme.Strong.Render(formatBytes(f.Size)),
+			truncate(f.Name, 40),
+			a.theme.Subtle.Render(f.Path),
+		)
+		lines = append(lines, row)
+	}
+	body := strings.Join(lines, "\n")
+	panel := components.Panel(a.theme, fmt.Sprintf(" Large files — top %d ", len(a.result.LargeFiles)),
+		body, components.PanelOpts{Width: a.width - 4, Accent: true})
+	footer := components.KeyHints(a.theme, []components.KeyHint{
+		{Key: "↑/↓", Action: "navigate"},
+		{Key: "del", Action: "trash (3.10)"},
+		{Key: "L / esc", Action: "close"},
 		{Key: "q", Action: "quit"},
 	})
 	return lipgloss.JoinVertical(lipgloss.Left, panel, "", footer)
