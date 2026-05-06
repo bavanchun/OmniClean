@@ -248,3 +248,6 @@ dist/
 
 # Local build artifact
 /omniclean
+
+# Local planning artifacts (Claude/Cursor)
+/plans/
