@@ -39,10 +39,20 @@ type Detector interface {
 // It is defined as a type so tests can inject a fake runner.
 type CommandRunner func(ctx context.Context, name string, args ...string) (string, error)
 
+// commandEnv returns the process environment with the locale forced to C so
+// package-manager output (apt "Remv", apt-mark, dpkg-query) is the stable,
+// parseable English form regardless of the user's LANG/LC_*. It builds on
+// os.Environ() so PATH/HOME and other inherited vars are preserved.
+func commandEnv() []string {
+	return append(os.Environ(), "LC_ALL=C", "LANG=C")
+}
+
 // DefaultRunner is the CommandRunner used in production.
 // It captures stdout/stderr into buffers (no stdin — cannot handle interactive prompts).
+// The command runs under a pinned C locale so output stays parseable.
 func DefaultRunner(ctx context.Context, name string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Env = commandEnv()
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
