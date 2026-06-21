@@ -3,7 +3,9 @@ package detector
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -74,6 +76,93 @@ func TestBrew_ListPackages(t *testing.T) {
 				tc.check(t, pkgs)
 			}
 		})
+	}
+}
+
+func TestBrew_Classify(t *testing.T) {
+	// leaves => manual (top-level): git, node
+	// autoremove -n => orphan candidates: libfoo
+	// linked-but-not-leaf (zlib) => dependency
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("leaves"), output: "git\nnode\n"},
+			{match: argContains("autoremove"), output: "==> Would remove 1 formula:\nlibfoo\n"},
+			{match: argContains("--cellar"), output: "/opt/homebrew/Cellar"},
+		},
+	}
+	d := NewBrew(fr.run)
+	d.stat = errStat() // install-time absent for this case
+
+	in := []pkg.Package{
+		{Name: "git", Manager: pkg.ManagerBrew},
+		{Name: "libfoo", Manager: pkg.ManagerBrew},
+		{Name: "zlib", Manager: pkg.ManagerBrew},
+	}
+	out, err := d.Classify(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+
+	roles := map[string]pkg.Role{}
+	for _, p := range out {
+		roles[p.Name] = p.Role
+	}
+	if roles["git"] != pkg.RoleManual {
+		t.Errorf("git role = %q, want manual", roles["git"])
+	}
+	if roles["libfoo"] != pkg.RoleOrphan {
+		t.Errorf("libfoo role = %q, want orphan", roles["libfoo"])
+	}
+	if roles["zlib"] != pkg.RoleDependency {
+		t.Errorf("zlib role = %q, want dependency", roles["zlib"])
+	}
+
+	// Only read-only commands may be issued. `brew uninstall` is always
+	// mutating; `brew autoremove` is mutating UNLESS run with the -n dry-run flag.
+	for i := range fr.calls {
+		cl := fr.commandLine(i)
+		mutating := strings.Contains(cl, "uninstall") ||
+			(strings.Contains(cl, "autoremove") && !containsArg(fr.calls[i], "-n"))
+		if mutating {
+			t.Errorf("classify issued mutating command: %q", cl)
+		}
+	}
+}
+
+func TestBrew_Classify_InstalledAtPresent(t *testing.T) {
+	want := time.Date(2025, 1, 4, 0, 0, 0, 0, time.UTC)
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("leaves"), output: "git\n"},
+			{match: argContains("autoremove"), output: ""},
+			{match: argContains("--cellar"), output: "/opt/homebrew/Cellar"},
+		},
+	}
+	d := NewBrew(fr.run)
+	d.stat = fixedStat(want)
+
+	out, err := d.Classify(context.Background(), []pkg.Package{{Name: "git", Manager: pkg.ManagerBrew}})
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	if !out[0].InstalledAt.Equal(want) {
+		t.Errorf("InstalledAt = %v, want %v", out[0].InstalledAt, want)
+	}
+}
+
+func TestBrew_Classify_UnavailableDegradesToUnknown(t *testing.T) {
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("leaves"), err: errors.New("brew: not found")},
+		},
+	}
+	d := NewBrew(fr.run)
+	out, err := d.Classify(context.Background(), []pkg.Package{{Name: "git", Manager: pkg.ManagerBrew}})
+	if err != nil {
+		t.Fatalf("Classify should degrade, not error: %v", err)
+	}
+	if out[0].Role != pkg.RoleUnknown {
+		t.Errorf("role = %q, want unknown on unavailable query", out[0].Role)
 	}
 }
 

@@ -3,7 +3,9 @@ package detector
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -82,6 +84,78 @@ func TestFlatpak_ListPackages(t *testing.T) {
 				tc.check(t, pkgs)
 			}
 		})
+	}
+}
+
+// Flatpak is leaf-only: there is no documented read-only/dry-run form of
+// `flatpak uninstall --unused`, so every listed app is treated as Manual and
+// nothing is ever reported Orphan (trustworthy-or-silent).
+func TestFlatpak_Classify_LeafOnly(t *testing.T) {
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("list"), output: "org.mozilla.firefox\norg.videolan.VLC\n"},
+		},
+	}
+	d := NewFlatpak(fr.run)
+	d.stat = errStat()
+
+	in := []pkg.Package{
+		{Name: "org.mozilla.firefox", Manager: pkg.ManagerFlatpak},
+		{Name: "org.videolan.VLC", Manager: pkg.ManagerFlatpak},
+	}
+	out, err := d.Classify(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	for _, p := range out {
+		if p.Role != pkg.RoleManual {
+			t.Errorf("%s role = %q, want manual (leaf-only)", p.Name, p.Role)
+		}
+		if p.Role == pkg.RoleOrphan {
+			t.Errorf("%s must never be orphan: flatpak has no read-only orphan query", p.Name)
+		}
+	}
+
+	// Only read-only commands; never a `flatpak uninstall`.
+	for i := range fr.calls {
+		if strings.Contains(fr.commandLine(i), "uninstall") {
+			t.Errorf("classify issued mutating command: %q", fr.commandLine(i))
+		}
+	}
+}
+
+func TestFlatpak_Classify_InstalledAtPresent(t *testing.T) {
+	want := time.Date(2025, 3, 9, 0, 0, 0, 0, time.UTC)
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("list"), output: "org.mozilla.firefox\n"},
+		},
+	}
+	d := NewFlatpak(fr.run)
+	d.stat = fixedStat(want)
+
+	out, err := d.Classify(context.Background(), []pkg.Package{{Name: "org.mozilla.firefox", Manager: pkg.ManagerFlatpak}})
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	if !out[0].InstalledAt.Equal(want) {
+		t.Errorf("InstalledAt = %v, want %v", out[0].InstalledAt, want)
+	}
+}
+
+func TestFlatpak_Classify_UnavailableDegradesToUnknown(t *testing.T) {
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("list"), err: errors.New("flatpak: not found")},
+		},
+	}
+	d := NewFlatpak(fr.run)
+	out, err := d.Classify(context.Background(), []pkg.Package{{Name: "org.mozilla.firefox", Manager: pkg.ManagerFlatpak}})
+	if err != nil {
+		t.Fatalf("Classify should degrade, not error: %v", err)
+	}
+	if out[0].Role != pkg.RoleUnknown {
+		t.Errorf("role = %q, want unknown", out[0].Role)
 	}
 }
 

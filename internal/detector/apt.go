@@ -12,12 +12,13 @@ import (
 
 // APT detects packages installed via apt/dpkg on Debian/Ubuntu systems.
 type APT struct {
-	run CommandRunner
+	run  CommandRunner
+	stat statFunc // resolves dpkg .list mtime for best-effort InstalledAt
 }
 
 // NewAPT creates an APT detector with the given command runner.
 func NewAPT(run CommandRunner) *APT {
-	return &APT{run: run}
+	return &APT{run: run, stat: osStatMtime}
 }
 
 func (a *APT) Name() string    { return "apt" }
@@ -79,6 +80,68 @@ func (a *APT) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 		packages = append(packages, p)
 	}
 	return packages, nil
+}
+
+// Classify marks each package Manual/Orphan/Dependency from apt's bookkeeping
+// using only read-only queries (no sudo). `apt-mark showmanual` lists manually
+// installed packages (Manual); `apt-get autoremove --dry-run` reports the
+// orphan set via "Remv {pkg}" lines (Orphan); installed-but-neither is a
+// still-required Dependency. Bounded by a context timeout; a failed primary
+// query degrades to RoleUnknown. InstalledAt is best-effort from the dpkg
+// .list file mtime (tracks last file-list write, not true install time).
+func (a *APT) Classify(ctx context.Context, pkgs []pkg.Package) ([]pkg.Package, error) {
+	ctx, cancel := context.WithTimeout(ctx, classifyTimeout)
+	defer cancel()
+
+	manualOut, err := a.run(ctx, "apt-mark", "showmanual")
+	if err != nil {
+		return markAllUnknown(pkgs), nil
+	}
+	manual := lineSet(manualOut)
+
+	// Orphans are best-effort; --dry-run keeps this read-only and sudo-free.
+	orphan := map[string]bool{}
+	if orphanOut, err := a.run(ctx, "apt-get", "autoremove", "--dry-run"); err == nil {
+		orphan = parseAptRemv(orphanOut)
+	}
+
+	out := make([]pkg.Package, len(pkgs))
+	copy(out, pkgs)
+	for i := range out {
+		name := out[i].Name
+		switch {
+		case orphan[name]:
+			out[i].Role = pkg.RoleOrphan
+		case manual[name]:
+			out[i].Role = pkg.RoleManual
+		default:
+			out[i].Role = pkg.RoleDependency
+		}
+		if a.stat != nil {
+			if t, err := a.stat(fmt.Sprintf("/var/lib/dpkg/info/%s.list", name)); err == nil {
+				out[i].InstalledAt = t
+			}
+		}
+	}
+	return out, nil
+}
+
+// parseAptRemv extracts package names from `apt-get autoremove --dry-run`
+// output. apt prints one "Remv {pkg} [version]" line per package it would
+// remove; a parse miss yields no orphans (safe), never a crash.
+func parseAptRemv(out string) map[string]bool {
+	set := map[string]bool{}
+	for _, line := range strings.Split(out, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "Remv ") {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) >= 2 {
+			set[fields[1]] = true
+		}
+	}
+	return set
 }
 
 // Uninstall is not used for APT since NeedsSudo=true; the TUI calls
