@@ -1,0 +1,9 @@
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following packages will be REMOVED:
+  libabsl20220623 libb2-1 libmd0
+0 upgraded, 0 newly installed, 3 to remove and 0 not upgraded.
+Remv libabsl20220623 [20220623.1-1+deb12u2]
+Remv libb2-1 [0.98.1-1.1]
+Remv libmd0 [1.0.4-2]

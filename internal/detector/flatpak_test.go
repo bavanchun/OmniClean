@@ -124,6 +124,44 @@ func TestFlatpak_Classify_LeafOnly(t *testing.T) {
 	}
 }
 
+// TestFlatpak_Classify_RuntimesNeverSurfaced is the leaf-only regression guard:
+// a runtime-style id that is NOT in the `flatpak list --app` set must stay
+// RoleUnknown (never Manual, never Orphan), and apps stay Manual. Confirms
+// flatpak never proposes a runtime as removable.
+func TestFlatpak_Classify_RuntimesNeverSurfaced(t *testing.T) {
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("list"), output: "org.mozilla.firefox\norg.videolan.VLC\ncom.spotify.Client\n"},
+		},
+	}
+	d := NewFlatpak(fr.run)
+	d.stat = errStat()
+
+	in := []pkg.Package{
+		{Name: "org.mozilla.firefox", Manager: pkg.ManagerFlatpak},      // app -> manual
+		{Name: "org.freedesktop.Platform", Manager: pkg.ManagerFlatpak}, // runtime, not an app
+	}
+	out, err := d.Classify(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	roles := map[string]pkg.Role{}
+	for _, p := range out {
+		roles[p.Name] = p.Role
+	}
+	if roles["org.mozilla.firefox"] != pkg.RoleManual {
+		t.Errorf("app role = %q, want manual", roles["org.mozilla.firefox"])
+	}
+	if roles["org.freedesktop.Platform"] != pkg.RoleUnknown {
+		t.Errorf("runtime role = %q, want unknown (never removable)", roles["org.freedesktop.Platform"])
+	}
+	for _, p := range out {
+		if p.Role == pkg.RoleOrphan {
+			t.Errorf("%s marked orphan; flatpak must never surface orphans", p.Name)
+		}
+	}
+}
+
 func TestFlatpak_Classify_InstalledAtPresent(t *testing.T) {
 	want := time.Date(2025, 3, 9, 0, 0, 0, 0, time.UTC)
 	fr := &fakeRunner{
