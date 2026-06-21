@@ -3,12 +3,101 @@ package detector
 import (
 	"context"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
+
+// readFixture loads a testdata file or fails the test.
+func readFixture(t *testing.T, name string) string {
+	t.Helper()
+	b, err := os.ReadFile("testdata/" + name)
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", name, err)
+	}
+	return string(b)
+}
+
+// TestParseAptRemv_RealFixtures locks orphan parsing against representative
+// real `apt-get autoremove --dry-run` output from Debian 12 and Ubuntu 24.04,
+// proving the "Remv {pkg} [ver]" parse and that preamble lines are ignored.
+func TestParseAptRemv_RealFixtures(t *testing.T) {
+	tests := []struct {
+		fixture string
+		want    []string
+	}{
+		{"apt-autoremove-debian12.txt", []string{"libabsl20220623", "libb2-1", "libmd0"}},
+		{"apt-autoremove-ubuntu2404.txt", []string{"libharfbuzz0b", "libfreetype6", "libgraphite2-3"}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.fixture, func(t *testing.T) {
+			got := parseAptRemv(readFixture(t, tc.fixture))
+			if len(got) != len(tc.want) {
+				t.Fatalf("got %d orphans, want %d: %v", len(got), len(tc.want), got)
+			}
+			for _, name := range tc.want {
+				if !got[name] {
+					t.Errorf("expected orphan %q missing from parse", name)
+				}
+			}
+			// Preamble nouns must never be parsed as package names.
+			for _, noise := range []string{"Reading", "The", "REMOVED:", "upgraded,"} {
+				if got[noise] {
+					t.Errorf("preamble token %q wrongly parsed as orphan", noise)
+				}
+			}
+		})
+	}
+}
+
+// TestParseAptRemv_TranslatedLocaleDegrades documents the failure the Phase 1
+// LC_ALL=C pin prevents: under a translated locale the removal lines are "Entf"
+// not "Remv", so the parser must yield zero orphans and never panic.
+func TestParseAptRemv_TranslatedLocaleDegrades(t *testing.T) {
+	got := parseAptRemv(readFixture(t, "apt-autoremove-translated-de.txt"))
+	if len(got) != 0 {
+		t.Errorf("translated locale should yield zero orphans, got %v", got)
+	}
+}
+
+// TestAPT_Classify_RealFixtures drives the full Classify path with the
+// args-switching fake returning real captured output for each command.
+func TestAPT_Classify_RealFixtures(t *testing.T) {
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("showmanual"), output: readFixture(t, "apt-showmanual-debian12.txt")},
+			{match: argContains("autoremove"), output: readFixture(t, "apt-autoremove-debian12.txt")},
+		},
+	}
+	d := NewAPT(fr.run)
+	d.stat = errStat()
+
+	in := []pkg.Package{
+		{Name: "curl", Manager: pkg.ManagerAPT},            // manual
+		{Name: "libabsl20220623", Manager: pkg.ManagerAPT}, // orphan
+		{Name: "libssl3", Manager: pkg.ManagerAPT},         // neither -> dependency
+	}
+	out, err := d.Classify(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	roles := map[string]pkg.Role{}
+	for _, p := range out {
+		roles[p.Name] = p.Role
+	}
+	if roles["curl"] != pkg.RoleManual {
+		t.Errorf("curl = %q, want manual", roles["curl"])
+	}
+	if roles["libabsl20220623"] != pkg.RoleOrphan {
+		t.Errorf("libabsl20220623 = %q, want orphan", roles["libabsl20220623"])
+	}
+	if roles["libssl3"] != pkg.RoleDependency {
+		t.Errorf("libssl3 = %q, want dependency", roles["libssl3"])
+	}
+}
 
 func TestAPT_ListPackages(t *testing.T) {
 	tests := []struct {

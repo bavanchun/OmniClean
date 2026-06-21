@@ -1,0 +1,9 @@
+Paketlisten werden gelesen...
+Abhängigkeitsbaum wird aufgebaut...
+Statusinformationen werden eingelesen...
+Die folgenden Pakete werden ENTFERNT:
+  libabsl20220623 libb2-1 libmd0
+0 aktualisiert, 0 neu installiert, 3 zu entfernen und 0 nicht aktualisiert.
+Entf libabsl20220623 [20220623.1-1+deb12u2]
+Entf libb2-1 [0.98.1-1.1]
+Entf libmd0 [1.0.4-2]
