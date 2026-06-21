@@ -20,12 +20,18 @@ import (
 // Selection identifies which feature the user chose.
 type Selection int
 
+// NOTE: Selection is computed positionally as Selection(cursorIndex+1), so the
+// order of these constants MUST mirror buildMenuItems for both platform
+// branches. SelectCleanup sits after SelectPurge and before SelectUninstallApps
+// so the darwin-only "Uninstall Apps" (appended last) stays the highest
+// non-quit ordinal. TestMenuItemSelectionMapping guards this invariant.
 const (
 	SelectNone          Selection = iota
-	SelectUninstall                // package uninstall TUI
-	SelectAnalyze                  // disk analyzer TUI
-	SelectPurge                    // project artifact purge TUI
-	SelectUninstallApps            // macOS app bundle uninstall TUI (darwin only)
+	SelectUninstall               // package uninstall TUI
+	SelectAnalyze                 // disk analyzer TUI
+	SelectPurge                   // project artifact purge TUI
+	SelectCleanup                 // cleanup-suggestions TUI (cross-platform)
+	SelectUninstallApps           // macOS app bundle uninstall TUI (darwin only)
 	SelectQuit
 )
 
@@ -42,6 +48,7 @@ func buildMenuItems() []menuItem {
 		{"Uninstall Packages", "Search and remove packages across all managers"},
 		{"Analyze Disk", "Explore disk usage and trash large files"},
 		{"Purge Project Artifacts", "Clean node_modules, target, .venv and more"},
+		{"Cleanup Suggestions", "Review removable orphan and leaf packages"},
 	}
 	if runtime.GOOS == "darwin" {
 		items = append(items, menuItem{"Uninstall Apps", "Remove .app bundles and orphan files"})
