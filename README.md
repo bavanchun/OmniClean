@@ -15,7 +15,8 @@ A cross-platform Go TUI that turns ten different package managers, project artif
 - **Leftover detection v2** — per-manager scanners locate residual caches, configs, and per-app data with byte-accurate sizes and a user-editable whitelist (`~/.config/omniclean/whitelist`).
 - **Project artifact purge** — `omniclean purge` walks configured project roots and lists `node_modules`, `target`, `.venv`, `__pycache__`, `.gradle`, `bin/obj`, `dist`, and friends, with per-stack badges, recent-build protection, and a confirm-before-delete flow.
 - **Interactive disk explorer** — `omniclean analyze` is a Bubbletea/Lip Gloss disk explorer with bar-rendered usage, breadcrumb navigation, a large-files overlay, and OS-native trash (Finder, gio/trash-cli, Recycle Bin).
-- **Pipeable** — `omniclean analyze --json` (or any non-TTY stdout) emits stable JSON for scripting.
+- **Cleanup suggestions** — `omniclean cleanup` classifies each package by the manager's own dependency bookkeeping into removable roles — **orphan** (auto-installed dependency no longer required) and **leaf** (top-level manual install) — and never surfaces a still-required dependency. Reuses the confirm/delete flow; candidates are listed orphans-first, oldest-install first.
+- **Pipeable** — `omniclean analyze --json` and `omniclean cleanup --json` (or any non-TTY stdout) emit stable JSON for scripting.
 
 ## Supported Package Managers
 
@@ -31,6 +32,20 @@ A cross-platform Go TUI that turns ten different package managers, project artif
 | winget        | Windows                   |
 | choco         | Windows (Chocolatey)      |
 | scoop         | Windows (Scoop)           |
+
+### Cleanup capability tiers
+
+`omniclean cleanup` only classifies what a manager can prove from its own bookkeeping — no usage-time or last-used heuristics:
+
+| Tier        | Managers                              | Suggests                          |
+|-------------|---------------------------------------|-----------------------------------|
+| Full        | brew, apt                             | orphan **and** leaf candidates    |
+| Leaf-only   | flatpak, cargo, pip, npm, snap, scoop | leaf (top-level) candidates only  |
+| Unknown     | winget, choco                         | nothing (no dependency graph)     |
+
+flatpak is leaf-only because it has no documented read-only/dry-run way to list unused runtimes; OmniClean never runs a mutating command to detect orphans.
+
+`installedAt` is **best-effort** and derived from filesystem mtimes (e.g. the Homebrew Cellar dir or the dpkg `.list` file). It tracks the last file-list write / relink, **not** a true install date, and is shown only as a sort hint — never as a removal decision driver.
 
 ## Installation
 
@@ -83,6 +98,12 @@ omniclean analyze ~/Code           # TUI explorer
 omniclean analyze --json | jq      # machine-readable
 omniclean analyze --large-min=1G   # raise the large-files threshold
 
+# Cleanup suggestions (removable orphan/leaf packages)
+omniclean cleanup                  # interactive review TUI
+omniclean cleanup --dry-run        # preview removals only
+omniclean cleanup --manager brew   # restrict to specific manager(s)
+omniclean cleanup --json | jq      # machine-readable candidate list
+
 # Animated main menu (spinner star + rotating gradient borders)
 omniclean --fancy
 ```
@@ -104,7 +125,7 @@ omniclean --fancy
 | Key            | Action                        |
 |----------------|-------------------------------|
 | `↑/↓` `j/k`    | Navigate cards                |
-| `1` / `2` / `3`| Jump to card and select       |
+| `1`…`4` (`5`)  | Jump to card and select       |
 | `enter`        | Select highlighted card       |
 | `?`            | Toggle full help              |
 | `q` / `esc`    | Quit                          |
