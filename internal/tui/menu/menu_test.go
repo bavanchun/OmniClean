@@ -1,6 +1,7 @@
 package menu
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -62,6 +63,53 @@ func TestMenuRender_Wide_CursorMid(t *testing.T) {
 	analyzeIdx := strings.Index(out, "Analyze Disk")
 	if barIdx < 0 || analyzeIdx < 0 || barIdx > analyzeIdx {
 		t.Errorf("expected ▌ to appear before Analyze Disk\nbar=%d analyze=%d", barIdx, analyzeIdx)
+	}
+}
+
+// TestMenuItemSelectionMapping locks the positional enum invariant: the
+// Selection value produced for a cursor index is exactly index+1, and the item
+// order matches buildMenuItems for the CURRENT platform. This is the guard
+// against silent menu mis-routing called out in the plan red-team.
+func TestMenuItemSelectionMapping(t *testing.T) {
+	items := buildMenuItems()
+
+	// Expected Selection per item index (index+1), independent of platform.
+	wantSel := []Selection{SelectUninstall, SelectAnalyze, SelectPurge, SelectCleanup}
+	if runtime.GOOS == "darwin" {
+		wantSel = append(wantSel, SelectUninstallApps)
+	}
+
+	if len(items) != len(wantSel) {
+		t.Fatalf("buildMenuItems len = %d, want %d on %s", len(items), len(wantSel), runtime.GOOS)
+	}
+
+	// Cursor index i must select wantSel[i] == Selection(i+1).
+	for i := range items {
+		if got := Selection(i + 1); got != wantSel[i] {
+			t.Errorf("index %d (%q) -> Selection %d, want %d", i, items[i].title, got, wantSel[i])
+		}
+	}
+
+	// "Cleanup Suggestions" must be present on every platform.
+	found := false
+	for _, it := range items {
+		if strings.Contains(it.title, "Cleanup") {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("Cleanup Suggestions item missing from menu")
+	}
+
+	// On darwin, Uninstall Apps must remain the last (highest-ordinal) item.
+	if runtime.GOOS == "darwin" {
+		last := items[len(items)-1]
+		if !strings.Contains(last.title, "Uninstall Apps") {
+			t.Errorf("darwin last item = %q, want it to remain 'Uninstall Apps'", last.title)
+		}
+		if Selection(len(items)) != SelectUninstallApps {
+			t.Errorf("SelectUninstallApps ordinal drifted: got %d", Selection(len(items)))
+		}
 	}
 }
 

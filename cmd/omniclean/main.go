@@ -16,6 +16,7 @@ import (
 	"github.com/bavanchun/OmniClean/internal/purge"
 	"github.com/bavanchun/OmniClean/internal/tui"
 	analyzetui "github.com/bavanchun/OmniClean/internal/tui/analyze"
+	cleanuptui "github.com/bavanchun/OmniClean/internal/tui/cleanup"
 	menutui "github.com/bavanchun/OmniClean/internal/tui/menu"
 	purgetui "github.com/bavanchun/OmniClean/internal/tui/purge"
 )
@@ -57,6 +58,8 @@ into a single interactive TUI. Search, select, and cleanly uninstall.`,
 				return runAnalyzeDefault(context.Background())
 			case menutui.SelectPurge:
 				return runPurgeDefault(context.Background(), dryRun, noConfirm)
+			case menutui.SelectCleanup:
+				return runCleanup(context.Background(), dryRun, managers)
 			case menutui.SelectUninstallApps:
 				return runUninstallApps(context.Background(), dryRun)
 			default:
@@ -96,6 +99,22 @@ func runUninstall(ctx context.Context, dryRun, noConfirm, verbose bool, managers
 		NoConfirm: noConfirm,
 		Verbose:   verbose,
 	})
+	return app.Run(ctx)
+}
+
+// runCleanup launches the cleanup-suggestions TUI over the available
+// detectors, honoring the same --manager filter and --dry-run flag as the
+// uninstall flow.
+func runCleanup(ctx context.Context, dryRun bool, managers []string) error {
+	detectors := detector.AvailableDetectors()
+	if len(managers) > 0 {
+		detectors = filterDetectors(detectors, managers)
+	}
+	if len(detectors) == 0 {
+		fmt.Fprintln(os.Stderr, "No supported package managers found on this system.")
+		return nil
+	}
+	app := cleanuptui.New(cleanuptui.Config{Detectors: detectors, DryRun: dryRun})
 	return app.Run(ctx)
 }
 
