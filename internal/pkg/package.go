@@ -5,6 +5,23 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
+)
+
+// Role classifies how removable a package is, based on the manager's own
+// dependency bookkeeping. The zero value is RoleUnknown so an unclassified
+// package is never treated as removable by default (safe-by-default).
+type Role string
+
+const (
+	// RoleUnknown is the zero value: the manager cannot tell, or no classifier ran.
+	RoleUnknown Role = ""
+	// RoleManual is a top-level package the user explicitly installed (a "leaf").
+	RoleManual Role = "manual"
+	// RoleOrphan is an auto-installed dependency no longer required — safest to remove.
+	RoleOrphan Role = "orphan"
+	// RoleDependency is still required by another package — must be protected/hidden.
+	RoleDependency Role = "dependency"
 )
 
 // ManagerType identifies which package manager owns a package.
@@ -33,6 +50,12 @@ type Package struct {
 	Description string
 	// Size in bytes, 0 if unknown
 	Size int64
+	// Role is the removable classification; RoleUnknown (zero) when not classified.
+	Role Role
+	// InstalledAt is a best-effort install time; zero when unknown (render as "—").
+	// Note: derived from filesystem mtimes by some managers, so it tracks last
+	// file-list write / relink, not necessarily true install time.
+	InstalledAt time.Time
 }
 
 // FilterValue is used by bubbles/list for fuzzy filtering.
