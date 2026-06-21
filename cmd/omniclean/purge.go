@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 
@@ -69,12 +68,4 @@ func convertStacks(in []string) []purge.Stack {
 		out = append(out, purge.Stack(s))
 	}
 	return out
-}
-
-// fail prints err to stderr and exits non-zero. Used by both purge and
-// analyze commands for a consistent failure path; declared here to keep
-// the helper close to its first caller.
-func fail(err error) {
-	fmt.Fprintln(os.Stderr, "error:", err)
-	os.Exit(1)
 }

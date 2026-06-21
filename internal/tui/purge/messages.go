@@ -16,6 +16,3 @@ type deleteDoneMsg struct {
 	Target purge.Target
 	Err    error
 }
-
-// allDeletedMsg signals every selected target has been processed.
-type allDeletedMsg struct{}

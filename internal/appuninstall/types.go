@@ -7,10 +7,10 @@ import "time"
 // Bundle represents a discovered .app bundle
 type Bundle struct {
 	Path        string
-	Name        string    // display name
-	BundleID    string    // com.example.foo (empty if plist unreadable)
-	Version     string    // short version string
-	Size        int64     // bytes
+	Name        string // display name
+	BundleID    string // com.example.foo (empty if plist unreadable)
+	Version     string // short version string
+	Size        int64  // bytes
 	LastModTime time.Time
 }
 
