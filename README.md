@@ -155,6 +155,17 @@ make fmt           # format with gofmt + goimports
 make install-tools # install golangci-lint, goreleaser, goimports
 ```
 
+### Validating the Linux classifiers
+
+The cleanup classifiers (apt/flatpak) are unit-tested against captured fixtures, but you can exercise them against a **real** apt inside a throwaway container:
+
+```bash
+scripts/validate-linux-classifiers.sh             # debian:12 (default)
+IMAGE=ubuntu:24.04 scripts/validate-linux-classifiers.sh
+```
+
+It plants an orphaned dependency and asserts `omniclean cleanup --json --manager apt` reports it. CI runs the same check as the soft-gated `classify-smoke` job. flatpak is leaf-only (no orphan signal), so verify it manually: every entry from `flatpak list --app` classifies as a `leaf`.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add a new package manager or submit a bug fix.
