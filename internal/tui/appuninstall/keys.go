@@ -6,16 +6,16 @@ package appuninstall
 // the appuninstall TUI. Using named constants avoids scatter of raw string
 // literals throughout the Update / view code.
 type keyMap struct {
-	Up    []string
-	Down  []string
-	Space string
-	All   string
-	Enter string
+	Up     []string
+	Down   []string
+	Space  string
+	All    string
+	Enter  string
 	Detail string
-	Back  string
-	Yes   string
-	No    string
-	Quit  []string
+	Back   string
+	Yes    string
+	No     string
+	Quit   []string
 }
 
 // defaultKeys returns the canonical key map for the appuninstall TUI.

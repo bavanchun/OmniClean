@@ -37,18 +37,6 @@ var (
 			Foreground(lipgloss.Color(theme.Primary)).
 			Bold(true)
 
-	subtitleStyle = lipgloss.NewStyle().
-			Foreground(textSubtle)
-
-	boxStyle = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color(theme.Primary)).
-			Padding(0, 2)
-
-	cursorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color(theme.Primary)).
-			Bold(true)
-
 	activeTitleStyle = lipgloss.NewStyle().
 				Foreground(textStrong).
 				Bold(true)
@@ -61,9 +49,6 @@ var (
 
 	inactiveDescStyle = lipgloss.NewStyle().
 				Foreground(textMuted)
-
-	helpStyle = lipgloss.NewStyle().
-			Foreground(textDim)
 
 	bannerStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color(theme.Primary)).

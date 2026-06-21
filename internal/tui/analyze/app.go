@@ -48,17 +48,17 @@ type App struct {
 
 	width, height int
 
-	result           coreanalyze.Result
-	err              error
-	cursor           int
-	scrollOffset     int // viewport offset for the entry list
-	largeCursor      int
+	result            coreanalyze.Result
+	err               error
+	cursor            int
+	scrollOffset      int // viewport offset for the entry list
+	largeCursor       int
 	largeScrollOffset int // viewport offset for the large-files overlay
-	showLarge        bool
-	history          *coreanalyze.History
-	pendingPath      string // path queued for trash when in stateConfirmTrash
-	pendingFile      bool   // true when pending target is a single file (large-files overlay)
-	statusMsg        string // transient status (e.g. "trashed: foo")
+	showLarge         bool
+	history           *coreanalyze.History
+	pendingPath       string // path queued for trash when in stateConfirmTrash
+	pendingFile       bool   // true when pending target is a single file (large-files overlay)
+	statusMsg         string // transient status (e.g. "trashed: foo")
 }
 
 // New constructs the App from the supplied Config.
