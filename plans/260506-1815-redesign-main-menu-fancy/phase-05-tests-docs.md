@@ -50,11 +50,11 @@ Lock in the new menu render via snapshot tests (mirrors existing `internal/tui/*
 
 ## Success Criteria
 
-- [ ] `go test ./internal/tui/menu/...` passes.
-- [ ] README shows new screenshot.
-- [ ] `--fancy` listed in flags table.
-- [ ] 2 commits pushed.
-- [ ] Plan can be archived (`/ck:plan archive`).
+- [x] `go test ./internal/tui/menu/...` passes.
+- [x] README shows new screenshot.
+- [x] `--fancy` listed in flags table.
+- [x] 2 commits pushed.
+- [x] Plan can be archived (`/ck:plan archive`).
 
 ## Risk Assessment
 

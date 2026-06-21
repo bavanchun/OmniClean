@@ -119,13 +119,13 @@ Replace the vertical list with a 2-column dashboard: brand panel left (ASCII ban
 
 ## Success Criteria
 
-- [ ] Brand panel renders banner + version on the left.
-- [ ] 3 cards render on the right at width ≥ 80.
-- [ ] Active card visually distinct (gradient if API supports, solid otherwise).
-- [ ] Quit removed from list, still triggerable via `q`/`esc`.
-- [ ] Width < 80 falls back to single column without overflow.
-- [ ] 4 commits pushed.
-- [ ] `go build ./...` and `go test ./...` pass.
+- [x] Brand panel renders banner + version on the left.
+- [x] 3 cards render on the right at width ≥ 80.
+- [x] Active card visually distinct (gradient if API supports, solid otherwise).
+- [x] Quit removed from list, still triggerable via `q`/`esc`.
+- [x] Width < 80 falls back to single column without overflow.
+- [x] 4 commits pushed.
+- [x] `go build ./...` and `go test ./...` pass.
 
 ## Risk Assessment
 
