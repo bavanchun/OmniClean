@@ -79,12 +79,12 @@ Clean up `menu.go` so subsequent visual work is fast: extract styles, drop hand-
 ## Success Criteria
 
 - [x] Phase scaffolding committed.
-- [ ] `styles.go` exists; `menu.go` no longer constructs styles in `render()`.
-- [ ] `lipgloss.Place` used; no manual `strings.Repeat("\n", ...)` for vertical pad.
-- [ ] No local `max` function.
-- [ ] `go build ./...` passes.
-- [ ] `go test ./...` passes.
-- [ ] 2 commits pushed (refactor styles, refactor centering).
+- [x] `styles.go` exists; `menu.go` no longer constructs styles in `render()`.
+- [x] `lipgloss.Place` used; no manual `strings.Repeat("\n", ...)` for vertical pad.
+- [x] No local `max` function.
+- [x] `go build ./...` passes.
+- [x] `go test ./...` passes.
+- [x] 2 commits pushed (refactor styles, refactor centering).
 
 ## Risk Assessment
 

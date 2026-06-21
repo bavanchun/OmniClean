@@ -107,12 +107,12 @@ Replace hand-rolled help string with `bubbles/help` + `bubbles/key`, add number 
 
 ## Success Criteria
 
-- [ ] Pressing `1`/`2`/`3` selects respective option.
-- [ ] `?` toggles full help; widths down to 60 cols don't overflow.
-- [ ] Footer rendered by `bubbles/help`, not hand-built string.
-- [ ] Text legible on both dark and light terminals.
-- [ ] 3 commits pushed.
-- [ ] `go test ./...` green.
+- [x] Pressing `1`/`2`/`3` selects respective option.
+- [x] `?` toggles full help; widths down to 60 cols don't overflow.
+- [x] Footer rendered by `bubbles/help`, not hand-built string.
+- [x] Text legible on both dark and light terminals.
+- [x] 3 commits pushed.
+- [x] `go test ./...` green.
 
 ## Risk Assessment
 

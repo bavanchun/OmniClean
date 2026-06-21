@@ -61,16 +61,16 @@ After **each completed task** within a phase:
 
 ## Success Criteria
 
-- [ ] Menu renders with 2-column dashboard at width ≥ 80.
-- [ ] Active card uses gradient border (Lipgloss v2 blend).
-- [ ] Number shortcuts `1/2/3` jump-select.
-- [ ] `?` toggles full help, footer auto-resizes.
-- [ ] Single-column fallback below width 80.
-- [ ] `--fancy` enables animated banner spinner + gradient offset rotation.
-- [ ] No new dependencies in `go.mod` (banner is hard-coded).
-- [ ] All commits follow Conventional Commits, no `Co-authored-by` trailer.
-- [ ] Each commit pushed to `origin` (GitHub + GitLab) before next task starts.
-- [ ] Existing `go test ./...` still green.
+- [x] Menu renders with 2-column dashboard at width ≥ 80.
+- [x] Active card uses gradient border (Lipgloss v2 blend).
+- [x] Number shortcuts `1/2/3` jump-select.
+- [x] `?` toggles full help, footer auto-resizes.
+- [x] Single-column fallback below width 80.
+- [x] `--fancy` enables animated banner spinner + gradient offset rotation.
+- [x] No new dependencies in `go.mod` (banner is hard-coded).
+- [x] All commits follow Conventional Commits, no `Co-authored-by` trailer.
+- [x] Each commit pushed to `origin` (GitHub + GitLab) before next task starts.
+- [x] Existing `go test ./...` still green.
 
 ## Risks
 

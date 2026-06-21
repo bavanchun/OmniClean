@@ -83,11 +83,11 @@ Add opt-in liveness: spinner replacing the `✦` star in the brand panel + anima
 
 ## Success Criteria
 
-- [ ] Without `--fancy`: render identical to Phase 3 final output.
-- [ ] With `--fancy`: star cycles ✦/✧ ~5×/sec; active card border gradient visibly rotates.
-- [ ] No tick storms — `tea.Tick` re-issued exactly once per tick.
-- [ ] Idle CPU sampled with `top -pid $(pgrep omniclean)` < 2%.
-- [ ] 2 commits pushed.
+- [x] Without `--fancy`: render identical to Phase 3 final output.
+- [x] With `--fancy`: star cycles ✦/✧ ~5×/sec; active card border gradient visibly rotates.
+- [x] No tick storms — `tea.Tick` re-issued exactly once per tick.
+- [x] Idle CPU sampled with `top -pid $(pgrep omniclean)` < 2%.
+- [x] 2 commits pushed.
 
 ## Risk Assessment
 
