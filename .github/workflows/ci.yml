@@ -58,3 +58,37 @@ jobs:
           cache: true
       - name: Build binary
         run: go build -o bin/omniclean ./cmd/omniclean
+
+  classify-smoke:
+    name: Classify smoke (real apt)
+    runs-on: ubuntu-latest
+    # Soft-gated: a flaky orphan plant must not block merges. The unit `test`
+    # matrix already pins parsing against captured fixtures; this job adds the
+    # live-apt guarantee on a best-effort basis.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - name: Build binary
+        run: go build -o bin/omniclean ./cmd/omniclean
+      - name: Plant an orphaned apt dependency
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          LC_ALL: C
+        run: |
+          sudo apt-get update -qq
+          # moreutils pulls a private dep (libipc-run-perl) that becomes
+          # orphaned once moreutils is removed — a deterministic orphan.
+          sudo apt-get install -y -qq moreutils
+          sudo apt-get remove -y -qq moreutils
+      - name: Run cleanup --json against real apt
+        run: ./bin/omniclean cleanup --json --manager apt | tee out.json
+      - name: Assert valid JSON with an orphan candidate
+        run: |
+          jq -e 'type == "array"' out.json
+          jq -e 'any(.[]; .role == "orphan")' out.json \
+            && echo "PASS: orphan detected by classifier" \
+            || { echo "WARN: no orphan detected on this runner image"; exit 3; }
