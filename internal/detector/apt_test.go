@@ -3,7 +3,9 @@ package detector
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/bavanchun/OmniClean/internal/pkg"
 )
@@ -89,6 +91,93 @@ func TestAPT_ListPackages(t *testing.T) {
 				tc.check(t, pkgs)
 			}
 		})
+	}
+}
+
+func TestAPT_Classify(t *testing.T) {
+	// apt-mark showmanual => manual: curl, vim
+	// apt-get autoremove --dry-run => "Remv libfoo ..." => orphan: libfoo
+	// libbar installed but neither => dependency
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("showmanual"), output: "curl\nvim\n"},
+			{match: argContains("autoremove"), output: "Reading package lists...\n" +
+				"The following packages will be REMOVED:\n  libfoo\n" +
+				"Remv libfoo [1.2-3]\n"},
+		},
+	}
+	d := NewAPT(fr.run)
+	d.stat = errStat()
+
+	in := []pkg.Package{
+		{Name: "curl", Manager: pkg.ManagerAPT},
+		{Name: "libfoo", Manager: pkg.ManagerAPT},
+		{Name: "libbar", Manager: pkg.ManagerAPT},
+	}
+	out, err := d.Classify(context.Background(), in)
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	roles := map[string]pkg.Role{}
+	for _, p := range out {
+		roles[p.Name] = p.Role
+	}
+	if roles["curl"] != pkg.RoleManual {
+		t.Errorf("curl role = %q, want manual", roles["curl"])
+	}
+	if roles["libfoo"] != pkg.RoleOrphan {
+		t.Errorf("libfoo role = %q, want orphan", roles["libfoo"])
+	}
+	if roles["libbar"] != pkg.RoleDependency {
+		t.Errorf("libbar role = %q, want dependency", roles["libbar"])
+	}
+
+	// Classify must stay read-only: the autoremove probe must carry --dry-run,
+	// and no `apt-get remove`/`sudo` invocation may appear.
+	for i := range fr.calls {
+		cl := fr.commandLine(i)
+		if strings.Contains(cl, "sudo") {
+			t.Errorf("classify escalated privileges: %q", cl)
+		}
+		if strings.Contains(cl, "autoremove") && !containsArg(fr.calls[i], "--dry-run") {
+			t.Errorf("autoremove probe not dry-run: %q", cl)
+		}
+	}
+}
+
+func TestAPT_Classify_InstalledAtPresent(t *testing.T) {
+	want := time.Date(2024, 12, 1, 0, 0, 0, 0, time.UTC)
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("showmanual"), output: "curl\n"},
+			{match: argContains("autoremove"), output: ""},
+		},
+	}
+	d := NewAPT(fr.run)
+	d.stat = fixedStat(want)
+
+	out, err := d.Classify(context.Background(), []pkg.Package{{Name: "curl", Manager: pkg.ManagerAPT}})
+	if err != nil {
+		t.Fatalf("Classify error: %v", err)
+	}
+	if !out[0].InstalledAt.Equal(want) {
+		t.Errorf("InstalledAt = %v, want %v", out[0].InstalledAt, want)
+	}
+}
+
+func TestAPT_Classify_UnavailableDegradesToUnknown(t *testing.T) {
+	fr := &fakeRunner{
+		responses: []fakeResponse{
+			{match: argContains("showmanual"), err: errors.New("apt-mark: not found")},
+		},
+	}
+	d := NewAPT(fr.run)
+	out, err := d.Classify(context.Background(), []pkg.Package{{Name: "curl", Manager: pkg.ManagerAPT}})
+	if err != nil {
+		t.Fatalf("Classify should degrade, not error: %v", err)
+	}
+	if out[0].Role != pkg.RoleUnknown {
+		t.Errorf("role = %q, want unknown", out[0].Role)
 	}
 }
 
