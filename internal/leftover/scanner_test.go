@@ -22,11 +22,14 @@ func makeFile(t *testing.T, dir, name string, n int) string {
 	return p
 }
 
-// withFakeHome points HOME (and XDG_*/UserCacheDir paths on Linux) at
+// withFakeHome points HOME (and XDG_*/UserCacheDir paths on Linux, APPDATA/LOCALAPPDATA on Windows) at
 // tmp so resolveUserPaths returns predictable values inside the test.
 func withFakeHome(t *testing.T, tmp string) {
 	t.Helper()
 	t.Setenv("HOME", tmp)
+	t.Setenv("USERPROFILE", tmp)
+	t.Setenv("APPDATA", filepath.Join(tmp, ".config"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(tmp, ".cache"))
 	t.Setenv("XDG_CONFIG_HOME", filepath.Join(tmp, ".config"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmp, ".cache"))
 	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, ".local", "share"))
