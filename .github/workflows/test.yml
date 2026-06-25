@@ -27,7 +27,7 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Test
-        run: go test -race -coverprofile=coverage.out ./...
+        run: go test -race "-coverprofile=coverage.out" ./...
       - name: Coverage total (report-only)
         if: matrix.os == 'ubuntu-latest'
         run: |
