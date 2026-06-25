@@ -79,8 +79,8 @@ func TestPacman_Classify_RealFixtures(t *testing.T) {
 	d.stat = errStat()
 
 	in := []pkg.Package{
-		{Name: "git", Version: "2.54.0-1", Manager: pkg.ManagerType("pacman")},            // manual in fixture
-		{Name: "perl-error", Version: "0.17030-3", Manager: pkg.ManagerType("pacman")},  // orphan in fixture
+		{Name: "git", Version: "2.54.0-1", Manager: pkg.ManagerType("pacman")},               // manual in fixture
+		{Name: "perl-error", Version: "0.17030-3", Manager: pkg.ManagerType("pacman")},       // orphan in fixture
 		{Name: "ca-certificates", Version: "20240618-1", Manager: pkg.ManagerType("pacman")}, // dependency in fixture
 	}
 	out, err := d.Classify(context.Background(), in)

@@ -54,7 +54,7 @@ func (z *Zypper) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 		p := pkg.Package{
 			Name:    parts[0],
 			Version: parts[1],
-			Manager: pkg.ManagerType("zypper"),
+			Manager: pkg.ManagerZypper,
 		}
 
 		if len(parts) >= 3 {

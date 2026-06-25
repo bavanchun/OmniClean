@@ -85,9 +85,9 @@ func TestZypper_Classify_RealFixtures(t *testing.T) {
 	d := NewZypper(fr.run)
 
 	in := []pkg.Package{
-		{Name: "bash", Manager: pkg.ManagerType("zypper")},      // manual (i+) in fixture
-		{Name: "git-core", Manager: pkg.ManagerType("zypper")},  // orphan (in unneeded table) in fixture
-		{Name: "bash-sh", Manager: pkg.ManagerType("zypper")},   // dependency (i, not manual/orphan) in fixture
+		{Name: "bash", Manager: pkg.ManagerType("zypper")},     // manual (i+) in fixture
+		{Name: "git-core", Manager: pkg.ManagerType("zypper")}, // orphan (in unneeded table) in fixture
+		{Name: "bash-sh", Manager: pkg.ManagerType("zypper")},  // dependency (i, not manual/orphan) in fixture
 	}
 	out, err := d.Classify(context.Background(), in)
 	if err != nil {

@@ -53,7 +53,7 @@ func (p *Pacman) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 		packages = append(packages, pkg.Package{
 			Name:    fields[0],
 			Version: fields[1],
-			Manager: pkg.ManagerType("pacman"),
+			Manager: pkg.ManagerPacman,
 		})
 	}
 	return packages, nil

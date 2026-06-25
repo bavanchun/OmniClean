@@ -136,4 +136,3 @@ func TestSnap_Classify_UnavailableDegradesToUnknown(t *testing.T) {
 		t.Errorf("firefox role = %q, want unknown", out[0].Role)
 	}
 }
-

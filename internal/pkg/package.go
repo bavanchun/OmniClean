@@ -35,6 +35,9 @@ const (
 	ManagerPip     ManagerType = "pip"
 	ManagerNPM     ManagerType = "npm"
 	ManagerCargo   ManagerType = "cargo"
+	ManagerDNF     ManagerType = "dnf"
+	ManagerPacman  ManagerType = "pacman"
+	ManagerZypper  ManagerType = "zypper"
 	// Windows package managers
 	ManagerWinget ManagerType = "winget"
 	ManagerChoco  ManagerType = "choco"

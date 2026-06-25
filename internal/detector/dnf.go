@@ -64,7 +64,7 @@ func (d *DNF) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 		p := pkg.Package{
 			Name:    parts[0],
 			Version: parts[1],
-			Manager: pkg.ManagerType("dnf"),
+			Manager: pkg.ManagerDNF,
 		}
 
 		if len(parts) >= 3 {
