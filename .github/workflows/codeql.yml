@@ -27,11 +27,11 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version-file: go.mod
-      - uses: github/codeql-action/init@f52b05f4acaaa234e44466e66d29050e135ea9ef # v3.28.10
+      - uses: github/codeql-action/init@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v3.28.10
         with:
           languages: go
           build-mode: autobuild
-      - uses: github/codeql-action/autobuild@f52b05f4acaaa234e44466e66d29050e135ea9ef # v3.28.10
-      - uses: github/codeql-action/analyze@f52b05f4acaaa234e44466e66d29050e135ea9ef # v3.28.10
+      - uses: github/codeql-action/autobuild@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v3.28.10
+      - uses: github/codeql-action/analyze@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v3.28.10
         with:
           category: "/language:go"
