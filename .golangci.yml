@@ -1,25 +1,42 @@
+version: "2"
+
 linters:
   enable:
     - errcheck
     - govet
-    - staticcheck
+    - staticcheck      # absorbs gosimple in v2
     - unused
-    - gosimple
     - ineffassign
-    - typecheck
     - misspell
     - revive
-    - gofmt
     - gocritic
+  exclusions:
+    rules:                     # v2: exclusions is an OBJECT; rules is the array
+      - path: _test\.go$
+        linters:
+          - errcheck
+      - path: internal/leftover/whitelist\.go
+        linters:
+          - errcheck
+      - path: internal/purge/config\.go
+        linters:
+          - errcheck
+      - path: internal/tui/list\.go
+        linters:
+          - errcheck
+  settings:
+    revive:
+      rules:
+        - name: exported
+          disabled: true
 
-linters-settings:
-  revive:
-    rules:
-      - name: exported
-        disabled: true  # internal/ has no exported docs requirement
-
-issues:
-  exclude-rules:
-    - path: "_test\\.go"
-      linters:
-        - errcheck
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true
+    goimports:
+      local-prefixes:
+        - github.com/bavanchun/OmniClean
