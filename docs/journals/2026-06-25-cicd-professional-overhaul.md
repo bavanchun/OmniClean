@@ -39,6 +39,8 @@ Completed 8-phase implementation utilizing file-disjoint parallel agents:
 1. **Workspace and File Disjointness for Agent Parallelism**: Splitting a large configuration file into separate, independent workflows allowed multiple subagents to work concurrently on different branches without git conflicts.
 2. **Worktree Conflicts**: Git worktrees created by subagents prevent branch deletion when local branches are active. Removing the worktrees explicitly (`git worktree remove`) resolves the conflict.
 3. **Cosign OIDC keyless constraints**: Cosign keyless blob signing requires OIDC authentication, which only runs under GHA environments. Snapshot runs must skip the `sign` step to avoid credential failures.
+4. **PowerShell Argument Parsing**: PowerShell splits unquoted arguments containing dots (e.g., `-coverprofile=coverage.out`) when passing to command-line tools. Explicit double-quoting (`"-coverprofile=coverage.out"`) is required for cross-platform compatibility.
+5. **govulncheck TypeParam panic**: Uninstantiated generic type parameters can trigger a panic in `govulncheck`'s SSA builder under Go 1.25/1.26. Running with `-scan package` bypasses symbol-level analysis to avoid the panic.
 
 ## Next Steps
 
