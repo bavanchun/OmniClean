@@ -6,9 +6,9 @@ import (
 
 func TestAllDetectors_Count(t *testing.T) {
 	all := AllDetectors()
-	// apt, snap, flatpak, brew, pip, npm, cargo, winget, choco, scoop = 10
-	if len(all) != 10 {
-		t.Errorf("AllDetectors() returned %d detectors, want 10", len(all))
+	// apt, dnf, pacman, zypper, snap, flatpak, brew, pip, npm, cargo, winget, choco, scoop = 13
+	if len(all) != 13 {
+		t.Errorf("AllDetectors() returned %d detectors, want 13", len(all))
 	}
 }
 
@@ -26,7 +26,7 @@ func TestAllDetectors_UniqueNames(t *testing.T) {
 
 func TestAllDetectors_ExpectedNames(t *testing.T) {
 	want := map[string]bool{
-		"apt": true, "snap": true, "flatpak": true, "brew": true,
+		"apt": true, "dnf": true, "pacman": true, "zypper": true, "snap": true, "flatpak": true, "brew": true,
 		"pip": true, "npm": true, "cargo": true,
 		"winget": true, "choco": true, "scoop": true,
 	}

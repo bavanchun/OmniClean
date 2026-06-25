@@ -125,6 +125,9 @@ Structured logging with file rotation:
 | Manager | Platforms | Detector | Leftover Scanner | Uninstall |
 |---------|-----------|----------|-----------------|-----------|
 | apt/dpkg | Linux (Debian/Ubuntu) | Yes | Yes | Yes |
+| dnf/yum | Linux (Fedora/RHEL) | Yes | Yes | Yes |
+| pacman | Linux (Arch) | Yes | Yes | Yes |
+| zypper | Linux (openSUSE) | Yes | Yes | Yes |
 | brew | macOS, Linux | Yes | Yes | Yes |
 | snap | Linux | Yes | Yes | Yes |
 | flatpak | Linux | Yes | Yes | Yes |

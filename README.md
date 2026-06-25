@@ -37,11 +37,11 @@ A cross-platform Go TUI that turns ten different package managers, project artif
 
 `omniclean cleanup` only classifies what a manager can prove from its own bookkeeping — no usage-time or last-used heuristics:
 
-| Tier        | Managers                              | Suggests                          |
-|-------------|---------------------------------------|-----------------------------------|
-| Full        | brew, apt                             | orphan **and** leaf candidates    |
-| Leaf-only   | flatpak, cargo, pip, npm, snap, scoop | leaf (top-level) candidates only  |
-| Unknown     | winget, choco                         | nothing (no dependency graph)     |
+| Tier        | Managers                                         | Suggests                          |
+|-------------|--------------------------------------------------|-----------------------------------|
+| Full        | brew, apt, dnf, pacman, zypper                   | orphan **and** leaf candidates    |
+| Leaf-only   | flatpak, cargo, pip, npm, snap, scoop            | leaf (top-level) candidates only  |
+| Unknown     | winget, choco                                    | nothing (no dependency graph)     |
 
 flatpak is leaf-only because it has no documented read-only/dry-run way to list unused runtimes; OmniClean never runs a mutating command to detect orphans.
 

@@ -7,6 +7,9 @@ func AllDetectors() []Detector {
 	return []Detector{
 		// Linux
 		NewAPT(DefaultRunner),
+		NewDNF(DefaultRunner),
+		NewPacman(DefaultRunner),
+		NewZypper(DefaultRunner),
 		NewSnap(DefaultRunner),
 		NewFlatpak(DefaultRunner),
 		// macOS + Linux

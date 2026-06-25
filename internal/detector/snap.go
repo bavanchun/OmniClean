@@ -61,6 +61,33 @@ func (s *Snap) ListPackages(ctx context.Context) ([]pkg.Package, error) {
 	return packages, nil
 }
 
+// Classify marks each installed snap package as RoleManual (leaf-only).
+func (s *Snap) Classify(ctx context.Context, pkgs []pkg.Package) ([]pkg.Package, error) {
+	ctx, cancel := context.WithTimeout(ctx, classifyTimeout)
+	defer cancel()
+
+	installedList, err := s.ListPackages(ctx)
+	if err != nil {
+		return markAllUnknown(pkgs), nil
+	}
+
+	manual := map[string]bool{}
+	for _, p := range installedList {
+		manual[p.Name] = true
+	}
+
+	out := make([]pkg.Package, len(pkgs))
+	copy(out, pkgs)
+	for i := range out {
+		name := out[i].Name
+		if !manual[name] {
+			continue
+		}
+		out[i].Role = pkg.RoleManual
+	}
+	return out, nil
+}
+
 // Uninstall is not used for Snap since NeedsSudo=true.
 func (s *Snap) Uninstall(_ context.Context, p pkg.Package) error {
 	return fmt.Errorf("snap: use UninstallExecCmd for interactive sudo uninstall of %s", p.Name)
