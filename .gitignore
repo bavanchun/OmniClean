@@ -237,9 +237,9 @@ $RECYCLE.BIN/
 bin/
 coverage.out
 
-# Claude
+# Claude local agent state (.claude/ settings + memory).
+# Committed cross-agent instruction files (AGENTS.md, CLAUDE.md, rules/) are tracked on purpose.
 *.claude
-CLAUDE.md
 
 # GoReleaser output
 dist/
