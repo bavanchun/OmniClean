@@ -1,0 +1,10 @@
+dbus-libs
+dnf-data
+dns-root-data
+expat
+hiredis
+libcomps
+libdnf
+mpdecimal
+protobuf-c
+python-pip-wheel
