@@ -43,4 +43,4 @@ jobs:
       - name: Run actionlint
         uses: docker://rhysd/actionlint:1.7.7   # pin tag, not :latest (SHA-pin posture)
         with:
-          args: -color
+          args: -color .github/workflows/lint.yml
