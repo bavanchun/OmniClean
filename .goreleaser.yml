@@ -22,11 +22,54 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files: [LICENSE, README.md]
 
 checksum:
-  name_template: "checksums.txt"
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+sboms:
+  - id: default
+    cmd: syft
+    args: ["$artifact", "--output", "spdx-json=$document", "--enrich", "all"]
+    documents: ["{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.sbom.json"]
+    artifacts: archive
+
+signs:
+  - id: checksums
+    cmd: cosign
+    signature: "${artifact}.sigstore.json"
+    args: ["sign-blob", "--yes", "--bundle=${signature}", "${artifact}"]
+    artifacts: checksum
+
+nfpms:
+  - id: default
+    package_name: omniclean
+    maintainer: "VChun <hoangbavan4478@gmail.com>"
+    description: "Cross-platform package-manager uninstall, leftover detection & cleanup TUI/CLI"
+    homepage: "https://github.com/bavanchun/OmniClean"
+    license: "MIT"
+    bindir: /usr/bin
+    section: utils
+    formats: [deb, rpm]
+
+homebrew_casks:
+  - name: omniclean
+    description: "Cross-platform package-manager uninstall, leftover detection & cleanup TUI/CLI"
+    homepage: "https://github.com/bavanchun/OmniClean"
+    repository:
+      owner: bavanchun
+      name: homebrew-tap
+      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    commit_author:
+      name: bavanchun
+      email: hoangbavan4478@gmail.com
 
 changelog:
   sort: asc
